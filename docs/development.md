@@ -15,11 +15,16 @@ app.main.js             (~8000 lines) Serial lifecycle, RX pipeline, monitor ren
                         modules, timeline, parser, charts, persistence, wiring.
 style.css               All styling, light/dark themes, compact layout.
 vendor/xterm/           Vendored xterm.js + fit addon + css (no CDN, so offline works).
+LICENSE                 AGPL-3.0, the license the upstream project declares.
 build-release.py        Verifies the version, then produces dist/SerialWeb.html.
+.github/workflows/      pages.yml — builds the artifact on every push to main and deploys
+                        it to GitHub Pages.
 tools/                  Optional development helpers: set-version.py (cut a release),
                         cdp-check.mjs (headless-browser audit driver),
-                        extract-i18n-keys.py (dictionary key lister). Not shipped.
-docs/                   This documentation set (English at the root, zh-CN mirror).
+                        extract-i18n-keys.py (dictionary key lister),
+                        docs-check.py (doc links, anchors, en/zh mirror parity). Not shipped.
+docs/                   This documentation set (English at the root, zh-CN mirror),
+                        including fork.md (provenance).
 ```
 
 There is no bundler, no framework, no build step for development — the sources are the
@@ -190,6 +195,9 @@ This repository tags from `v0.1.0`, and the entries below it keep the upstream `
 shipped with — which is why the changelog reads `0.2.0, 0.1.0, 1.5, 1.4, …`. From here on the
 format is `vMAJOR.MINOR.PATCH` and the tag equals `VERSION` with a `v` prefix.
 
+`package.json` / `package-lock.json` carry the same number so `npm ci` in CI stays consistent, but
+nothing reads it: it exists only to pin the esbuild dev-dependency.
+
 ## Cutting a release
 
 Write the notes first, under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md) and `## 未发布` in
@@ -202,14 +210,39 @@ python build-release.py
 git commit -a -m "chore(release): v0.2.0" && git tag v0.2.0
 ```
 
-`set-version.py` promotes both changelog headings, rewrites `const VERSION`, inserts the new dialog
-block (keeping the newest `--keep 5`), derives its English header and bullet translations into
-`app.lang.js` from the English changelog, and updates the current-version mention in
+`set-version.py` promotes both changelog headings, rewrites `const VERSION`, rewrites the version
+field in `package.json` and `package-lock.json`, inserts the new dialog block (keeping the newest
+`--keep 5`), derives its English header and bullet translations into `app.lang.js` from the English
+changelog, and updates the current-version mention in
 [README.md](README.md) plus the `appVersion` example in [data-formats.md](data-formats.md). It
 commits nothing; review the diff. Since the dialog lines are dictionary keys, hand-writing them
 into `index.html` instead would show Chinese in the English UI — the script is what keeps the
 English changelog and the dialog in step. `build-release.py` then refuses to build while the three
 copies disagree, so a skipped step fails the build instead of shipping a stale dialog.
+
+## Publishing on GitHub Pages
+
+`.github/workflows/pages.yml` runs `build-release.py` on Python 3.12 and Node 22, copies
+`dist/SerialWeb.html` to `dist/index.html`, uploads `dist/` as the Pages artifact, and the
+`deploy` job publishes it to <https://ra9fael.github.io/SerialWeb/>. The site is therefore always
+exactly the artifact of the commit it was built from — nothing is uploaded by hand and `dist/`
+stays out of Git. The version guard runs first, so a drifted tree fails the build instead of
+publishing a stale dialog.
+
+Pages defaults a new repository to `main:/` as its source, so this needs to be switched once:
+
+```sh
+gh api -X POST repos/ra9fael/SerialWeb/pages -f build_type=workflow
+gh api repos/ra9fael/SerialWeb/pages --jq .build_type   # -> workflow
+```
+
+After that every push to `main`, or a manually dispatched run, redeploys. The lockfile resolves
+esbuild from a mirror registry; the workflow falls back to `registry.npmjs.org` when that install
+fails, and the build still emits a working (unminified) file if esbuild is missing entirely.
+
+The published page makes no analytics request: `trackSerialWebView()` posts the page-view count
+only when the hostname is `conductance-lab.xyz`, which is the upstream author's host, so neither a
+Pages deployment nor a local `http://localhost` one contacts it.
 
 ## Release checklist
 
@@ -217,10 +250,12 @@ copies disagree, so a skipped step fails the build instead of shipping a stale d
    [cutting a release](#cutting-a-release). Do not edit `VERSION` or the dialog by hand.
 2. Smoke-test `dist/SerialWeb.html`: console clean, both locales, and the ☰ **关于** dialog showing
    the new version.
-3. Publish to the two hosting endpoints (`conductance-lab.xyz/SerialWeb/` and the GitHub Pages
-   project). The offline **下载离线版到本地** link and `ONLINE_VERSION_URL` are static — no
-   update feed exists, so a version check happens only when the page is loaded.
-4. Tag the release; the single-file artifact is convenient to attach to the tag.
+3. Push `main` and the tag. The [Pages workflow](#publishing-on-github-pages) then rebuilds and
+   redeploys <https://ra9fael.github.io/SerialWeb/> from that commit. The offline
+   **下载离线版到本地** link and `ONLINE_VERSION_URL` are static — no update feed exists, so a
+   version check happens only when the page is loaded.
+4. Check the deployed page: console clean, version label correct, and ☰ → 关于 showing the new
+   block in both languages.
 
 ## Documentation
 
@@ -232,3 +267,9 @@ still quote each label as `English (中文)`. The English strings live in `app.l
 Chinese source text (a missing entry degrades to Chinese rather than showing a key); the engine is
 `t()` / `translateDom()` / `setLocale()` in `app.core.js` plus `renderTranslatedViews()` in
 `app.main.js`, which re-runs every view that can hold a label after a switch.
+
+`python tools/docs-check.py` verifies the tree: every relative link and heading anchor resolves,
+and each English page has a `docs/zh-CN/` mirror with the same heading counts. Run it after moving
+or renaming a heading. [fork provenance](fork.md) is the page to keep accurate when the project's
+identity changes — the divergence point, what this fork adds and the license terms; the About
+dialog in `index.html` carries the same facts in compressed form, so the two are edited together.

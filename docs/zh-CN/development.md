@@ -17,11 +17,16 @@ app.main.js             (~8000 lines) Serial lifecycle, RX pipeline, monitor ren
                         modules, timeline, parser, charts, persistence, wiring.
 style.css               All styling, light/dark themes, compact layout.
 vendor/xterm/           Vendored xterm.js + fit addon + css (no CDN, so offline works).
+LICENSE                 AGPL-3.0, the license the upstream project declares.
 build-release.py        Verifies the version, then produces dist/SerialWeb.html.
+.github/workflows/      pages.yml — builds the artifact on every push to main and deploys
+                        it to GitHub Pages.
 tools/                  Optional development helpers: set-version.py (cut a release),
                         cdp-check.mjs (headless-browser audit driver),
-                        extract-i18n-keys.py (dictionary key lister). Not shipped.
-docs/                   This documentation set (English at the root, zh-CN mirror).
+                        extract-i18n-keys.py (dictionary key lister),
+                        docs-check.py (doc links, anchors, en/zh mirror parity). Not shipped.
+docs/                   This documentation set (English at the root, zh-CN mirror),
+                        including fork.md (provenance and license).
 ```
 
 没有打包工具、没有框架、开发也不需要有构建步骤——源码就是实际交付的文件。`node_modules/`、`dist/` 和 `.venv/` 都被 git 忽略；`dist/` 随时可以由 `build-release.py` 重新生成。
@@ -132,6 +137,8 @@ python build-release.py --no-minify           # readable output, fastest
 
 本仓库从 `v0.1.0` 开始打标签，其下的条目保留它们发布时沿用的上游 `1.x` 编号——所以更新日志读起来是 `0.2.0, 0.1.0, 1.5, 1.4, …`。此后一律使用 `vMAJOR.MINOR.PATCH`，标签就是 `VERSION` 加一个 `v` 前缀。
 
+`package.json` 与 `package-lock.json` 里的版本号与它保持一致，只为让 CI 的 `npm ci` 不报警；没有任何代码读取那一份，它存在的意义只是锁定 esbuild 这个开发依赖。
+
 ## 发布新版本
 
 先把更新内容写进 [CHANGELOG.md](../CHANGELOG.md) 的 `## Unreleased` 与 [CHANGELOG.md](CHANGELOG.md) 的 `## 未发布`——两份逐条对应、条目数相同——然后：
@@ -143,15 +150,45 @@ python build-release.py
 git commit -a -m "chore(release): v0.2.0" && git tag v0.2.0
 ```
 
-`set-version.py` 会同时提升两处更新日志小标题，重写 `const VERSION`，插入新的弹窗 更新日志 块（只保留最新的 `--keep 5` 段），依据英文更新日志把新块的标题与每一条英文译文写进 `app.lang.js`，并更新 [README.md](README.md) 的当前版本一行与 [data-formats.md](data-formats.md) 的 `appVersion` 示例。它不提交任何东西，请审阅 diff。弹窗里的每一行本身就是字典的键，手改 `index.html` 会让英文界面显示中文——这个脚本正是让英文更新日志与弹窗保持同步的手段。之后 `build-release.py` 在三处版本不一致时拒绝构建，于是漏掉一步表现为构建失败，而不是交付一个版本号过期的弹窗。
+`set-version.py` 会同时提升两处更新日志小标题，重写 `const VERSION`，重写 `package.json` 与
+`package-lock.json` 的版本字段，插入新的弹窗 更新日志 块（只保留最新的 `--keep 5` 段），依据英文更新日志把新块的标题与每一条英文译文写进 `app.lang.js`，并更新 [README.md](README.md) 的当前版本一行与 [data-formats.md](data-formats.md) 的 `appVersion` 示例。它不提交任何东西，请审阅 diff。弹窗里的每一行本身就是字典的键，手改 `index.html` 会让英文界面显示中文——这个脚本正是让英文更新日志与弹窗保持同步的手段。之后 `build-release.py` 在三处版本不一致时拒绝构建，于是漏掉一步表现为构建失败，而不是交付一个版本号过期的弹窗。
+
+## 发布到 GitHub Pages
+
+`.github/workflows/pages.yml` 在 Python 3.12 与 Node 22 上运行 `build-release.py`，把
+`dist/SerialWeb.html` 复制成 `dist/index.html`，将 `dist/` 作为 Pages 产物上传，再由 `deploy`
+作业发布到 <https://ra9fael.github.io/SerialWeb/>。也就是说线上站点永远是那个提交构建出来的产物：
+不手工上传文件，`dist/` 也不进版本库。版本校验在最前面，所以版本漂移会让构建失败，而不是发布一个
+版本号过期的弹窗。
+
+新仓库的 Pages 来源默认是 `main:/`，因此需要一次性改成工作流：
+
+```sh
+gh api -X POST repos/ra9fael/SerialWeb/pages -f build_type=workflow
+gh api repos/ra9fael/SerialWeb/pages --jq .build_type   # -> workflow
+```
+
+此后每次推送到 `main`（或手动运行该工作流）都会重新部署。锁文件里的 esbuild 解析自一个镜像源；
+那次安装失败时工作流会退回 `registry.npmjs.org`，而如果 esbuild 完全缺失，构建仍会给出一个可用
+（只是未压缩）的文件。
+
+线上页面不会发出统计请求：`trackSerialWebView()` 只在主机名是 `conductance-lab.xyz`（原作者的主机）
+时才提交页面访问计数，因此 Pages 部署和本地的 `http://localhost` 都不会去访问它。
 
 ## 发布检查清单
 
 1. 把更新内容写进两份更新日志的 `Unreleased` / `未发布`，再按[发布新版本](#发布新版本)切出版本号。不要手工修改 `VERSION` 或弹窗文案。
 2. 对 `dist/SerialWeb.html` 做冒烟测试：控制台干净、两种语言都正常，☰ **关于** 弹窗显示新的版本号。
-3. 发布到两个托管端点（`conductance-lab.xyz/SerialWeb/` 和 GitHub Pages 项目）。离线的 **下载离线版到本地** 链接和 `ONLINE_VERSION_URL` 是静态的——不存在更新源，因此只在页面加载时才做版本检查。
-4. 给发布打标签；单文件产物很适合附在标签上。
+3. 推送 `main` 和标签，[Pages 工作流](#发布到-github-pages)会用这个提交重新构建并部署
+   <https://ra9fael.github.io/SerialWeb/>。离线的 **下载离线版到本地** 链接和 `ONLINE_VERSION_URL`
+   是静态的——不存在更新源，因此只在页面加载时才做版本检查。
+4. 检查线上页面：控制台干净、版本标签正确，☰ → 关于 在两种语言里都显示新的更新块。
 
 ## 文档
 
 文档位于 `docs/`，英文在根目录，并在 `docs/zh-CN/` 下以完全相同的文件名做中文镜像。两棵树要保持同步：新增一节应当同时出现在两边；上面的锚点被其他文件链接引用，因此重命名标题就意味着要更新指向它的链接。界面已支持中英双语（☰ 菜单里的 中文 / English / 跟随系统），因此英文文档仍把每个标签写作 `English (中文)`。英文词条集中在 `app.lang.js`，以中文原文作为键（缺少词条时退回中文，不会显示键名）；引擎是 `app.core.js` 里的 `t()` / `translateDom()` / `setLocale()`，以及 `app.main.js` 里的 `renderTranslatedViews()`——切换语言后由它重绘所有可能带标签的视图。
+
+`python tools/docs-check.py` 会检查这棵树：每个相对链接与标题锚点都能落到实处，并且每一篇英文文档
+在 `docs/zh-CN/` 都有标题层级数一致的镜像。移动或重命名标题之后要跑一次。项目的身份信息一旦变化，
+需要一起改的是[分叉来源](fork.md)（分叉点、本分叉新增内容、许可证）和 `index.html` 里的关于弹窗——
+弹窗是同一批事实的压缩版本。

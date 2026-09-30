@@ -191,16 +191,7 @@ def main():
 
 def validate_inline_scripts(html):
     """Run `node --check` on every inline <script> body; False on any failure."""
-    node = None
-    for candidate in ('node.exe', 'node'):
-        try:
-            node = subprocess.run(['where', candidate], capture_output=True, text=True,
-                                  encoding='utf-8', errors='replace')
-            if node.returncode == 0:
-                node = node.stdout.splitlines()[0].strip()
-                break
-        except OSError:
-            node = None
+    node = shutil.which('node')
     if not node:
         print('WARN: node not found, skipping minified script validation')
         return True
