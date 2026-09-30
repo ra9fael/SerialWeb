@@ -67,9 +67,11 @@ def minify_js_with_esbuild(source):
     with io.open(src_path, 'w', encoding='utf-8', newline='\n') as handle:
         handle.write(source)
     try:
+        # Tool output is decoded as UTF-8 on purpose: esbuild prints a "⚡ Done" summary that
+        # crashes the locale codec (e.g. cp936 on zh-CN Windows) inside the capture thread.
         result = subprocess.run(
             [esbuild, src_path, '--minify', '--format=iife', f'--outfile={out_path}'],
-            capture_output=True, text=True)
+            capture_output=True, text=True, encoding='utf-8', errors='replace')
         if result.returncode != 0:
             print('WARN: esbuild failed, JS left unminified:\n%s' % result.stderr[:800])
             return source, False
@@ -152,7 +154,8 @@ def validate_inline_scripts(html):
     node = None
     for candidate in ('node.exe', 'node'):
         try:
-            node = subprocess.run(['where', candidate], capture_output=True, text=True)
+            node = subprocess.run(['where', candidate], capture_output=True, text=True,
+                                  encoding='utf-8', errors='replace')
             if node.returncode == 0:
                 node = node.stdout.splitlines()[0].strip()
                 break
@@ -170,10 +173,11 @@ def validate_inline_scripts(html):
             path = handle.name
         try:
             result = subprocess.run([node, '--check', path],
-                                    capture_output=True, text=True)
+                                    capture_output=True, text=True,
+                                    encoding='utf-8', errors='replace')
             if result.returncode != 0:
                 print('ERROR: inline script #%d failed node --check:\n%s'
-                      % (index, result.stderr[:800]))
+                      % (index, (result.stderr or result.stdout or '')[:800]))
                 return False
         finally:
             os.unlink(path)
