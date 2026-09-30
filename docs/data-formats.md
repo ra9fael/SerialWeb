@@ -32,11 +32,13 @@ falls back to defaults independently, so hand-editing or trimming it is safe.
   "receiveContentSchemaVersion": 1,
   "savedAt": 1767100000000,          // Date.now(), informational only
   "theme": "system",                 // "system" | "light" | "dark"
+  "locale": "system",                // "system" | "zh" | "en" — interface language
 
   "layout": {
     "expanded": false,               // false = 监视, true = 解析 layout
     "monitorView": "terminal",       // "terminal" | "manual"
-    "terminalFont": "",              // CSS font-family, "" = default
+    "terminalFont": "",              // CSS font-family, "" = default; unset families are rejected by the picker
+    "terminalFontSize": 12,          // px, clamped to 8-48
     "terminalSkin": "",              // "" | green | black-white | dracula | solarized-dark | solarized-light | one-dark
     "terminalNewline": "n",          // "n" | "rn" | "r" | "none"
     "sidebarCollapsed": false,

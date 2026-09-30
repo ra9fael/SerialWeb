@@ -85,7 +85,7 @@
       <section class="corner-block">
         <div class="corner-actions">
           <div class="menu-anchor">
-            <button id="system-menu-btn" class="icon-btn" title="System Menu">&#9776;</button>
+            <button id="system-menu-btn" class="icon-btn" title="系统菜单">&#9776;</button>
             <div id="system-menu" class="floating-menu">
               <button id="version-info-btn" class="menu-static-line version-info-btn" type="button">
                 <span id="runtime-mode-label" class="runtime-mode-label">关于 v1.6</span>
@@ -97,6 +97,14 @@
                   <button class="menu-theme-opt is-active" data-theme="system">跟随系统</button>
                   <button class="menu-theme-opt" data-theme="light">浅色模式</button>
                   <button class="menu-theme-opt" data-theme="dark">深色模式</button>
+                </div>
+              </div>
+              <div class="menu-theme-line">
+                <span class="menu-theme-label">语言：</span>
+                <div id="menu-language-group" class="menu-theme-group">
+                  <button class="menu-lang-opt is-active" data-locale="zh">中文</button>
+                  <button class="menu-lang-opt" data-locale="en">English</button>
+                  <button class="menu-lang-opt" data-locale="system">跟随系统</button>
                 </div>
               </div>
               <div id="config-menu-row" class="menu-config-line">
@@ -439,6 +447,10 @@
                   <option value="&quot;Courier New&quot;, monospace">Courier New</option>
                 </select>
               </label>
+              <label class="term-field" title="终端字号（8-48，可在终端内 Ctrl + 滚轮缩放）">
+                <span>字号</span>
+                <input id="term-font-size" type="number" min="8" max="48" step="1" value="12" inputmode="numeric">
+              </label>
               <label class="term-field" title="终端配色主题">
                 <span>主题</span>
                 <select id="term-skin">
@@ -462,7 +474,7 @@
           </div>
           <div class="monitor-body">
             <div class="terminal-wrap">
-              <div id="terminal" class="terminal"></div>
+              <div id="terminal" class="terminal" data-i18n-off></div>
               <button id="terminal-jump-btn" class="terminal-jump-btn" type="button" title="到底部" aria-label="滚动到底部">
                 <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M12 5v12"></path>
@@ -549,7 +561,7 @@
             </section>
 
             <section id="term-interaction" class="term-interaction" aria-label="终端交互模式">
-              <div id="term-output" class="term-output" aria-label="串口终端，直接键入内容，回车发送"></div>
+              <div id="term-output" class="term-output" aria-label="串口终端，直接键入内容，回车发送" data-i18n-off></div>
             </section>
           </div>
         </section>
@@ -670,8 +682,10 @@
   <div id="toast-layer" class="toast-layer"></div>
 
   <script src="vendor/xterm/xterm.js"></script>
-<script src="vendor/xterm/xterm-addon-fit.js"></script>
-<script src="app.loader.js"></script>
+  <script src="vendor/xterm/xterm-addon-fit.js"></script>
+  <!-- Locale dictionaries: must be inlined above the app chunks. -->
+  <script src="app.lang.js"></script>
+  <script src="app.loader.js"></script>
 </body>
 </html>
 

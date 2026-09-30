@@ -20,9 +20,10 @@ Current version: **v1.6**. Project home:
 <https://conductance-lab.github.io/SerialWeb/> ·
 <https://github.com/Conductance-lab/SerialWeb>
 
-> The interface is currently Chinese-only. Every label in these English docs is given as
-> `English (中文)` so it can be found on screen. The Chinese documentation set mirrors this
-> one file for file: [docs/zh-CN/README.md](zh-CN/README.md).
+> The interface is bilingual: choose **中文 / English / 跟随系统 (follow the system)** in the ☰
+> system menu; a first run follows the browser language. Every label in these English docs is
+> still given as `English (中文)` so it can be found in either language. The Chinese
+> documentation set mirrors this one file for file: [docs/zh-CN/README.md](zh-CN/README.md).
 
 ## Documentation
 

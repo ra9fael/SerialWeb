@@ -8,6 +8,8 @@
 index.html              Document shell: every panel, control and dialog. No inline app logic.
 bootstrap.js            Runs before first paint: theme, body classes, favicon. Only pre-read script.
 app.loader.js           Dev-mode chunk loader (fetch + concat + eval as one script).
+app.lang.js             (~420 lines) Locale dictionaries: Chinese source string -> English.
+                        Standalone script, not part of the shared closure.
 app.core.js             (~2100 lines) Constants, `state`, `refs`, formatting, encoding, hex,
                         theme, layout, toasts, buffers, version/offline detection, analytics.
 app.terminal.js         (~300 lines) xterm.js lifecycle, skins, echo/history, view switching.
@@ -16,6 +18,8 @@ app.main.js             (~8000 lines) Serial lifecycle, RX pipeline, monitor ren
 style.css               All styling, light/dark themes, compact layout.
 vendor/xterm/           Vendored xterm.js + fit addon + css (no CDN, so offline works).
 build-release.py        Produces dist/SerialWeb.html.
+tools/                  Optional development helpers: cdp-check.mjs (headless-browser audit
+                        driver), extract-i18n-keys.py (dictionary key lister). Not shipped.
 docs/                   This documentation set (English at the root, zh-CN mirror).
 ```
 
@@ -113,10 +117,16 @@ python build-release.py --no-minify           # readable output, fastest
 5. 时间线：REC → 停止 → 选中 → 拖动 → 导出 BIN/TXT/CSV → 重新导入 → 导出解析结果 CSV。
 6. 持久化：重新加载页面，确认布局/主题/队列/图表都恢复了；然后 复制配置 → 重新加载 → 粘贴导入。
 7. 布局：把窗口拖窄到 720 px 以下，并检查两种布局以及发送面板的拖拽手柄。
+8. 两种语言：☰ → 语言 → English，检查界面外壳里是否还残留中文（语言选项本身、字体名与皮肤名属于预期），再切回 中文 检查是否有英文。标签变长是布局风险——监视器标题/计数那一行和 ☰ 菜单是最先挤不下的两处。
+
+`tools/cdp-check.mjs` 把第 1、2、8 步自动化：它通过 CDP 驱动一个无依赖的 headless Edge，例如
+`node tools/cdp-check.mjs --url http://127.0.0.1:8731/dist/SerialWeb.html --out audit --scenario i18n`，
+输出一份 JSON 轨迹加一张截图，并报告控制台错误。场景有 `i18n`（语言往返与残留审计）、`term`（字体可用性、字号、Ctrl+滚轮、隐藏时生效）、`roundtrip` 和 `reset`。
+`tools/extract-i18n-keys.py` 会从 `index.html` 与各分片重新生成 `app.lang.js` 的候选键表。
 
 ## 发布检查清单
 
-1. 更新 `app.core.js` 里的 `VERSION`，以及 `index.html` 中版本弹窗文案里的那一份（标题、`在线版本` 标签，并新增一段 更新日志 —— 它们彼此是独立的字符串，每一个都要改）。
+1. 更新 `app.core.js` 里的 `VERSION`，以及 `index.html` 中版本弹窗文案里的那一份（标题、`在线版本` 标签，并新增一段 更新日志 —— 它们彼此是独立的字符串，每一个都要改）。版本相关的字符串本身都走带 `{{version}}` 占位符的 `t()`，因此不需要新增词条；但每一条 更新日志 文本本身就是一个键：要在 `app.lang.js` 里给它配上英文，否则英文界面会显示中文行。
 2. 在 [CHANGELOG.md](../CHANGELOG.md)（英文）和 [CHANGELOG.md](CHANGELOG.md) 中补上对应条目。
 3. 执行 `python build-release.py`，并对 `dist/SerialWeb.html` 做冒烟测试。
 4. 发布到两个托管端点（`conductance-lab.xyz/SerialWeb/` 和 GitHub Pages 项目）。离线的 **下载离线版到本地** 链接和 `ONLINE_VERSION_URL` 是静态的——不存在更新源，因此只在页面加载时才做版本检查。
@@ -124,4 +134,4 @@ python build-release.py --no-minify           # readable output, fastest
 
 ## 文档
 
-文档位于 `docs/`，英文在根目录，并在 `docs/zh-CN/` 下以完全相同的文件名做中文镜像。两棵树要保持同步：新增一节应当同时出现在两边；上面的锚点被其他文件链接引用，因此重命名标题就意味着要更新指向它的链接。界面本身目前只有中文，因此英文文档把每个标签写作 `English (中文)`，这也正是将来做 i18n 时可以起手的字符串表。
+文档位于 `docs/`，英文在根目录，并在 `docs/zh-CN/` 下以完全相同的文件名做中文镜像。两棵树要保持同步：新增一节应当同时出现在两边；上面的锚点被其他文件链接引用，因此重命名标题就意味着要更新指向它的链接。界面已支持中英双语（☰ 菜单里的 中文 / English / 跟随系统），因此英文文档仍把每个标签写作 `English (中文)`。英文词条集中在 `app.lang.js`，以中文原文作为键（缺少词条时退回中文，不会显示键名）；引擎是 `app.core.js` 里的 `t()` / `translateDom()` / `setLocale()`，以及 `app.main.js` 里的 `renderTranslatedViews()`——切换语言后由它重绘所有可能带标签的视图。

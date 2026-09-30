@@ -31,11 +31,13 @@ SerialWeb 写出或持久化的一切格式，便于其他工具读取抓取数�
   "receiveContentSchemaVersion": 1,
   "savedAt": 1767100000000,          // Date.now()，仅供参考
   "theme": "system",                 // "system" | "light" | "dark"
+  "locale": "system",                // "system" | "zh" | "en" — 界面语言
 
   "layout": {
     "expanded": false,               // false = 监视布局，true = 解析布局
     "monitorView": "terminal",       // "terminal" | "manual"
-    "terminalFont": "",              // CSS font-family，"" = 默认
+    "terminalFont": "",              // CSS font-family，"" = 默认；未安装的字体族会被选择器拒绝
+    "terminalFontSize": 12,          // 像素，限制在 8-48
     "terminalSkin": "",              // "" | green | black-white | dracula | solarized-dark | solarized-light | one-dark
     "terminalNewline": "n",          // "n" | "rn" | "r" | "none"
     "sidebarCollapsed": false,

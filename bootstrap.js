@@ -21,9 +21,25 @@
   const applyThemeClass = (theme) => {
     document.documentElement.classList.toggle('theme-dark', theme === 'dark');
   };
+  // The authored UI language is Chinese, so a saved snapshot from before the
+  // language switch existed must keep rendering Chinese rather than English.
+  const getInitialLocaleSetting = () => {
+    const saved = initialPrefs?.locale;
+    if (saved === 'system' || saved === 'zh' || saved === 'en') return saved;
+    return initialPrefs ? 'zh' : 'system';
+  };
+  const resolveLocale = (setting) => {
+    if (setting === 'system') {
+      return /^zh\b/i.test(navigator.language || '') ? 'zh' : 'en';
+    }
+    return setting === 'en' ? 'en' : 'zh';
+  };
 
   window.__serialWebInitialPrefs = initialPrefs;
   window.__serialWebInitialTheme = getInitialTheme();
+  window.__serialWebResolveLocale = resolveLocale;
+  window.__serialWebInitialLocale = getInitialLocaleSetting();
+  document.documentElement.lang = resolveLocale(window.__serialWebInitialLocale) === 'zh' ? 'zh-CN' : 'en';
   window.__applySerialWebInitialBodyClasses = () => {
     const body = document.body;
     if (!body) return;

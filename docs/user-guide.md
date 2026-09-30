@@ -160,14 +160,15 @@ designed for shells, AT-command modules, boot consoles and anything that wants l
 
 **Terminal mode is an independent channel.** RX is only decoded into the emulator and
 counted; it does **not** feed the log, the parser, the charts, or recording, and TX keystrokes
-are not recorded either. Switch back to 手动收发 before you parse or plot.
+are not recorded either. Switch back to 手动收发 (Manual) before you parse or plot.
 
 Toolbar options:
 
 | Control | Values | Notes |
 | --- | --- | --- |
 | Newline (换行) | `\n`, `\r\n`, `\r`, none | Bytes sent when you press Enter. |
-| Font (字体) | Default plus Cascadia, JetBrains Mono, FiraCode, Hack, MesloLGS NF, 更纱黑体, Noto Mono CJK, Consolas, Courier New | Any font installed on the machine; Nerd Font variants get icons. |
+| Font (字体) | Default plus Cascadia, JetBrains Mono, FiraCode, Hack, MesloLGS NF, 更纱黑体, Noto Mono CJK, Consolas, Courier New | Only fonts installed on the machine are selectable: the rest are greyed out with a `Font not detected…` tooltip, because every stack ends in `monospace` and would otherwise render exactly like the default. Nerd Font variants add icons. |
+| Size (字号) | 8–48 px, default 12 | `Ctrl` + mouse wheel over the terminal steps it by 1 px; the grid re-fits either way. |
 | Theme (主题) | Follow app (跟随应用), 黑底绿字, 黑底白字, Dracula, Solarized Dark, Solarized Light, One Dark | Independent of the application theme. |
 | Echo (回显) | on/off | Local echo for devices that do not echo. |
 
@@ -306,6 +307,10 @@ Formats are specified in [data-formats.md](data-formats.md).
 - **Theme (主题)** — Follow system (跟随系统) / Light (浅色模式) / Dark (深色模式) in the system
   menu. `prefers-color-scheme` is watched live, and the favicon swaps with the theme so the
   tab stays legible. Charts and terminal colours follow unless a terminal skin is set.
+- **Language (语言)** — 中文 / English / Follow system (跟随系统) in the same menu. The switch is
+  instant, needs no reload and persists in `serialweb:prefs`; Follow system resolves
+  `navigator.language`. Only the interface is translated — received log lines, terminal history,
+  names you typed and device data keep the language they were written in.
 - **Toasts** auto-dismiss after 10 s, are deduplicated by key, and come in success / warn /
   error kinds.
 - The system menu's **下载离线版到本地** fetches the page plus every asset and downloads one
@@ -315,7 +320,7 @@ Formats are specified in [data-formats.md](data-formats.md).
 ## Settings persistence and config transfer
 
 Everything — serial framing, display options, parser rule, chart layouts and zoom state,
-send queues, terminal font/skin, theme, panel sizes — is saved to `localStorage` under
+send queues, terminal font and size, language, theme, panel sizes — is saved to `localStorage` under
 `serialweb:prefs`, debounced 500 ms, and flushed again when the page unloads. The schema is
 documented in [data-formats.md](data-formats.md#preference-snapshot).
 
@@ -324,9 +329,9 @@ confirmation step first (`此操作会丢失当前设置`):
 
 | Action | Behaviour |
 | --- | --- |
-| Copy config (复制配置) | Writes `{type:"SerialWebUserConfig", version:1, exportedAt, userConfig:{…}}` JSON to the clipboard. |
-| Paste import (粘贴导入) | Reads the clipboard, requires the same `type`/`version`, applies settings live (re-opening the port if framing changed). Failure: `粘贴失败 / 剪贴板中未检测到有效的配置。` |
-| Reset config (清空配置) | Clears `serialweb:*` and legacy `wsl-*` storage, disconnects, restores factory defaults plus the seeded example send items, and reopens the version dialog. `已还原 / 已恢复默认配置，仅保留示例项。` |
+| Copy (复制配置) | Writes `{type:"SerialWebUserConfig", version:1, exportedAt, userConfig:{…}}` JSON to the clipboard. |
+| Paste (粘贴导入) | Reads the clipboard, requires the same `type`/`version`, applies settings live (re-opening the port if framing changed). Failure: `粘贴失败 / 剪贴板中未检测到有效的配置。` |
+| Clear (清空配置) | Clears `serialweb:*` and legacy `wsl-*` storage, disconnects, restores factory defaults — language back to Follow system, terminal font and size back to default — plus the seeded example send items, and reopens the version dialog. `已还原 / 已恢复默认配置，仅保留示例项。` |
 
 Copy/paste is the quickest way to hand a colleague an identical parser and chart setup, and
 it is also what a captured timeline embeds.
@@ -342,6 +347,7 @@ it is also what a captured timeline embeds.
 | Drag on a chart's plot | Pan (and release "follow latest"). |
 | Drag on a chart's X or Y axis | Zoom that axis. |
 | Mouse wheel over a chart | Zoom, 0.96 per notch. |
+| `Ctrl` + mouse wheel over the terminal | Terminal font size ±1 px, clamped to 8–48. |
 | Drag a chart's top/bottom edge | Resize (≥ 140 px). |
 | Drag a send row / schema row | Reorder. |
 

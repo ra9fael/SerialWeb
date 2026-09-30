@@ -6,6 +6,8 @@
 index.html              Document shell: every panel, control and dialog. No inline app logic.
 bootstrap.js            Runs before first paint: theme, body classes, favicon. Only pre-read script.
 app.loader.js           Dev-mode chunk loader (fetch + concat + eval as one script).
+app.lang.js             (~420 lines) Locale dictionaries: Chinese source string -> English.
+                        Standalone script, not part of the shared closure.
 app.core.js             (~2100 lines) Constants, `state`, `refs`, formatting, encoding, hex,
                         theme, layout, toasts, buffers, version/offline detection, analytics.
 app.terminal.js         (~300 lines) xterm.js lifecycle, skins, echo/history, view switching.
@@ -14,6 +16,8 @@ app.main.js             (~8000 lines) Serial lifecycle, RX pipeline, monitor ren
 style.css               All styling, light/dark themes, compact layout.
 vendor/xterm/           Vendored xterm.js + fit addon + css (no CDN, so offline works).
 build-release.py        Produces dist/SerialWeb.html.
+tools/                  Optional development helpers: cdp-check.mjs (headless-browser audit
+                        driver), extract-i18n-keys.py (dictionary key lister). Not shipped.
 docs/                   This documentation set (English at the root, zh-CN mirror).
 ```
 
@@ -155,12 +159,27 @@ The app has no automated tests. The practical pass is:
    reload → 粘贴导入.
 7. Layout: drag the window under 720 px, and check both layouts plus the send-panel resize
    handle.
+8. Both locales: switch ☰ → 语言 → English and look for any Chinese left in the chrome (the
+   language option itself, font and skin names are expected), then back to 中文 and look for
+   English. Widened labels are a layout risk — the monitor title/meta row and the ☰ menu are the
+   two places that ran out of room first.
+
+`tools/cdp-check.mjs` automates 1, 2 and 8: it drives a headless Edge over CDP with no
+dependencies — `node tools/cdp-check.mjs --url http://127.0.0.1:8731/dist/SerialWeb.html --out
+audit --scenario i18n` — and writes a JSON trace plus a screenshot, reporting console errors.
+The scenarios are `i18n` (locale round-trip and residual audit), `term` (font availability,
+size, ctrl+wheel, applying while hidden), `roundtrip` and `reset`.
+`tools/extract-i18n-keys.py` regenerates the candidate key list for
+`app.lang.js` from `index.html` and the chunks.
 
 ## Release checklist
 
 1. Bump `VERSION` in `app.core.js` and the copy in the version dialog markup in `index.html`
    (title, `在线版本` label, and a new 更新日志 block — these are separate strings, all of them
-   need editing).
+   need editing). The version strings themselves go through `t()` with a `{{version}}`
+   placeholder, so they need no new dictionary entries — but every 更新日志 line you add is
+   itself a key: give it an English counterpart in `app.lang.js` or the English UI shows the
+   Chinese line.
 2. Add the matching entry to [CHANGELOG.md](CHANGELOG.md) (English) and
    [zh-CN/CHANGELOG.md](zh-CN/CHANGELOG.md).
 3. `python build-release.py` and smoke-test `dist/SerialWeb.html`.
@@ -174,5 +193,8 @@ The app has no automated tests. The practical pass is:
 Docs live in `docs/`, English at the root and mirrored under `docs/zh-CN/` with identical file
 names. Keep the two trees in lockstep: a new section should appear in both, and the anchors
 above are linked from other files, so renaming a heading means updating the links that point at
-it. The interface itself is Chinese-only today; English docs therefore quote each label as
-`English (中文)`, which is also the string table a future i18n pass would start from.
+it. The interface is bilingual — 中文 / English / 跟随系统 picked in the ☰ menu — so English docs
+still quote each label as `English (中文)`. The English strings live in `app.lang.js`, keyed by the
+Chinese source text (a missing entry degrades to Chinese rather than showing a key); the engine is
+`t()` / `translateDom()` / `setLocale()` in `app.core.js` plus `renderTranslatedViews()` in
+`app.main.js`, which re-runs every view that can hold a label after a switch.

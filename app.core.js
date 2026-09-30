@@ -50,10 +50,14 @@
   const terminalRuntime = {
     term: null,
     fitAddon: null,
-    resizeObserver: null
+    resizeObserver: null,
+    pendingApply: false
   };
   const TERMINAL_HISTORY_MAX = 200;
-  const TERMINAL_READY_HINT = '\x1b[2m—— 串口终端已就绪：直接键入即发送（Ctrl+C/Ctrl+D/方向键等原样透传给设备）；如设备不回显，请打开“回显” ——\x1b[0m';
+  const TERMINAL_FONT_SIZE_MIN = 8;
+  const TERMINAL_FONT_SIZE_MAX = 48;
+  const TERMINAL_FONT_SIZE_DEFAULT = 12;
+  const TERMINAL_READY_HINT_TEXT = '—— 串口终端已就绪：直接键入即发送（Ctrl+C/Ctrl+D/方向键等原样透传给设备）；如设备不回显，请打开“回显” ——';
 
   const refs = {
     topbar: document.getElementById('app-topbar'),
@@ -65,6 +69,8 @@
     serialStatusText: document.getElementById('serial-status-text'),
     themeGroup: document.getElementById('menu-theme-group'),
     themeOpts: document.querySelectorAll('#menu-theme-group .menu-theme-opt'),
+    langGroup: document.getElementById('menu-language-group'),
+    langOpts: document.querySelectorAll('#menu-language-group .menu-lang-opt'),
     timelineSelect: document.getElementById('timeline-select'),
     stopRecordBtn: document.getElementById('stop-record-btn'),
     timelinePickerBtn: document.getElementById('timeline-picker-btn'),
@@ -176,6 +182,7 @@
     termOutput: document.getElementById('term-output'),
     termNewline: document.getElementById('term-newline'),
     termFont: document.getElementById('term-font'),
+    termFontSize: document.getElementById('term-font-size'),
     termSkin: document.getElementById('term-skin'),
     termLocalEcho: document.getElementById('term-local-echo'),
     autoSendTile: document.getElementById('auto-send-tile'),
@@ -209,9 +216,13 @@
   const initialSavedTheme = (window.__serialWebInitialPrefs && (window.__serialWebInitialPrefs.theme === 'system' || window.__serialWebInitialPrefs.theme === 'dark' || window.__serialWebInitialPrefs.theme === 'light'))
     ? window.__serialWebInitialPrefs.theme
     : 'system';
+  const initialSavedLocale = ['zh', 'en', 'system'].includes(window.__serialWebInitialLocale)
+    ? window.__serialWebInitialLocale
+    : 'system';
   const state = {
     version: VERSION,
     theme: initialSavedTheme,
+    locale: initialSavedLocale,
     layoutExpanded: false,
     parserMode: 'text',
     serial: {
@@ -625,14 +636,14 @@
         for (let i = 0; i < part.length; i += 2) {
           const piece = part.slice(i, i + 2);
           if (!/^[0-9a-fA-F]{2}$/.test(piece)) {
-            throw new Error(`非法 HEX 字节: ${piece}`);
+            throw new Error(t('非法 HEX 字节: {{byte}}', { byte: piece }));
           }
           values.push(parseInt(piece, 16));
         }
         continue;
       }
       if (!/^[0-9a-fA-F]{1,2}$/.test(part)) {
-        throw new Error(`非法 HEX 字节: ${part}`);
+        throw new Error(t('非法 HEX 字节: {{byte}}', { byte: part }));
       }
       values.push(parseInt(part, 16));
     }
@@ -876,7 +887,8 @@
     const actionsHtml = actions.length
       ? `<div class="toast-actions">${actions.map((action, index) => `<button class="toast-action-btn ${escapeHtml(action.kind || '')}" type="button" data-toast-action="${index}">${escapeHtml(action.label)}</button>`).join('')}</div>`
       : '';
-    item.innerHTML = `<div class="toast-head"><div class="toast-title">${escapeHtml(title)}</div><button class="toast-close" type="button" aria-label="关闭提示">×</button></div><div class="toast-body">${escapeHtml(body)}</div>${actionsHtml}`;
+    item.innerHTML = `<div class="toast-head"><div class="toast-title">${escapeHtml(title)}</div><button class="toast-close" type="button" aria-label="${escapeHtml(t('关闭提示'))}">×</button></div><div class="toast-body">${escapeHtml(body)}</div>${actionsHtml}`;
+    translateDom(item);
     const close = () => {
       if (item._toastTimer) {
         clearTimeout(item._toastTimer);
@@ -901,24 +913,24 @@
   function getSerialErrorInfo(error, fallback = '串口操作失败') {
     const message = String(error?.message || '').trim();
     if (error?.name === 'NotFoundError') {
-      return { kind: 'cancelled', detail: '未选择串口设备' };
+      return { kind: 'cancelled', detail: t('未选择串口设备') };
     }
     if (message && /access denied|permission|denied/i.test(message)) {
-      return { kind: 'permission', detail: '串口访问被拒绝，请检查系统权限' };
+      return { kind: 'permission', detail: t('串口访问被拒绝，请检查系统权限') };
     }
     if (error?.name === 'InvalidStateError') {
-      return { kind: 'occupied', detail: '串口已被占用或当前状态不可操作' };
+      return { kind: 'occupied', detail: t('串口已被占用或当前状态不可操作') };
     }
     if (message && /busy|in use|claimed|resource busy|already open/i.test(message)) {
-      return { kind: 'occupied', detail: '串口已被占用，请关闭其他串口软件后重试' };
+      return { kind: 'occupied', detail: t('串口已被占用，请关闭其他串口软件后重试') };
     }
     if (
       error?.name === 'NetworkError'
       || (message && /device has been lost|disconnected|not found|failed to open|port is closed|network error/i.test(message))
     ) {
-      return { kind: 'missing', detail: '串口设备已断开或不可用' };
+      return { kind: 'missing', detail: t('串口设备已断开或不可用') };
     }
-    return { kind: 'generic', detail: message || fallback };
+    return { kind: 'generic', detail: message || t(fallback) };
   }
 
   function isWebSerialApiAvailable() {
@@ -930,7 +942,7 @@
   }
 
   function getUnifiedConnectionFailureDetail() {
-    return '串口可能被占用，请关闭其他串口软件后重试';
+    return t('串口可能被占用，请关闭其他串口软件后重试');
   }
 
   function showConnectButtonHint(text, kind = 'default', durationMs = 2000) {
@@ -949,7 +961,7 @@
   }
 
   function shortConnectHint(action) {
-    return `${action} | 串口可能被占用`;
+    return t('{{action}} | 串口可能被占用', { action: t(action) });
   }
 
   function normalizeSendOptions(sendOptions = state.settings) {
@@ -1468,6 +1480,7 @@
       });
     }
     window.__setSerialWebFavicon?.();
+    refitTerminal();
   }
 
   function syncThemeFromBrowser() {
@@ -1493,6 +1506,208 @@
   function toggleTheme() {
     var next = state.theme === 'system' ? 'light' : state.theme === 'light' ? 'dark' : 'system';
     handleThemeChange(next);
+  }
+
+  /* --------------------------------------------------------------------------
+   * i18n. The authored UI language is Chinese, so English is keyed by the
+   * Chinese source text (dictionary in app.lang.js). A missing key therefore
+   * degrades to Chinese - a visible gap, never a raw key on screen.
+   * Two mechanisms, deliberately compatible:
+   *   t()              for strings produced by JavaScript
+   *   translateDom()   for the static markup, which is only ever Chinese
+   * Text nodes are only taken over when they contain CJK, so a node already
+   * rendered in English by t() can never be mistaken for its own source.
+   * ------------------------------------------------------------------------*/
+  const I18N_ATTRIBUTES = ['title', 'aria-label', 'placeholder', 'data-tip', 'data-short', 'data-hover'];
+  const I18N_SKIP_TAGS = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEXTAREA: 1 };
+  const I18N_VALID_LOCALES = ['zh', 'en', 'system'];
+  const i18nTextSources = new WeakMap();
+  const i18nAttrSources = new WeakMap();
+
+  function i18nHasCjk(text) {
+    return /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(text);
+  }
+
+  function resolveLocale() {
+    if (state.locale === 'zh' || state.locale === 'en') return state.locale;
+    if (typeof window.__serialWebResolveLocale === 'function') {
+      return window.__serialWebResolveLocale(state.locale);
+    }
+    return (/^zh\b/i.test(navigator.language || '') ? 'zh' : 'en');
+  }
+
+  function i18nDictionary() {
+    return resolveLocale() === 'en' ? (window.SERIALWEB_I18N && window.SERIALWEB_I18N.en) || null : null;
+  }
+
+  function tr(source) {
+    const dict = i18nDictionary();
+    if (!dict) return source;
+    // Markup and long template literals wrap, so a lookup that misses the raw
+    // text still gets a chance against the whitespace-collapsed form.
+    let value = dict[source];
+    if (typeof value !== 'string') value = dict[source.replace(/\s+/g, ' ').trim()];
+    return typeof value === 'string' ? value : source;
+  }
+
+  function t(source, vars) {
+    const text = tr(String(source));
+    if (!vars) return text;
+    return text.replace(/\{\{(\w+)\}\}/g, (match, key) => (
+      Object.prototype.hasOwnProperty.call(vars, key) ? String(vars[key]) : match
+    ));
+  }
+
+  function translateTextNode(node) {
+    let source = i18nTextSources.get(node);
+    if (source === undefined) {
+      if (!i18nHasCjk(node.nodeValue)) return;
+      source = node.nodeValue;
+      i18nTextSources.set(node, source);
+    }
+    const next = tr(source);
+    if (node.nodeValue !== next) node.nodeValue = next;
+  }
+
+  function translateElementAttributes(el) {
+    const cached = i18nAttrSources.get(el);
+    for (const attr of I18N_ATTRIBUTES) {
+      const current = el.getAttribute(attr);
+      if (current === null) continue;
+      let source = cached ? cached.get(attr) : undefined;
+      if (source === undefined) {
+        if (!i18nHasCjk(current)) continue;
+        source = current;
+        if (cached) cached.set(attr, source);
+        else i18nAttrSources.set(el, new Map([[attr, source]]));
+      }
+      const next = tr(source);
+      if (current !== next) el.setAttribute(attr, next);
+    }
+  }
+
+  function translateDom(root = document.body) {
+    if (!root || !root.ownerDocument) return;
+    const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        // data-i18n-off marks device data: the node itself is still eligible
+        // (its aria-label is UI), but nothing below it is.
+        if (node.nodeType === 1 && I18N_SKIP_TAGS[node.tagName]) return NodeFilter.FILTER_REJECT;
+        if (node.parentElement?.closest('[data-i18n-off]')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    let node = walker.currentNode;
+    while (node) {
+      if (node.nodeType === 3) translateTextNode(node);
+      else translateElementAttributes(node);
+      node = walker.nextNode();
+    }
+  }
+
+  /* Renderers replace DOM subtrees and set tooltips after a locale switch, so
+   * freshly written Chinese would otherwise stay untranslated until the next
+   * switch. Watching childList plus the translatable attributes is enough: our
+   * own edits write the value back unchanged, and an attribute write with an
+   * identical value produces no mutation record, so this cannot loop. */
+  let i18nWatchFrame = 0;
+  const i18nWatchedNodes = new Set();
+
+  function flushI18nDomWatch() {
+    i18nWatchFrame = 0;
+    const nodes = Array.from(i18nWatchedNodes);
+    i18nWatchedNodes.clear();
+    if (resolveLocale() !== 'en') return;
+    nodes.forEach((node) => {
+      if (node.isConnected) translateDom(node);
+    });
+  }
+
+  function startI18nDomWatcher() {
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'childList') {
+          for (const node of mutation.addedNodes) {
+            if (node.nodeType === 1) i18nWatchedNodes.add(node);
+            else if (node.nodeType === 3 && node.parentElement) i18nWatchedNodes.add(node.parentElement);
+          }
+        } else if (mutation.target.nodeType === 1) {
+          i18nWatchedNodes.add(mutation.target);
+        }
+      }
+      if (i18nWatchedNodes.size && !i18nWatchFrame) {
+        i18nWatchFrame = requestAnimationFrame(flushI18nDomWatch);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: I18N_ATTRIBUTES });
+  }
+
+  function applyLanguage() {
+    const locale = resolveLocale();
+    document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en';
+    translateDom(document.body);
+    if (refs.langGroup) {
+      refs.langGroup.classList.remove('pos-second', 'pos-third');
+      if (state.locale === 'en') refs.langGroup.classList.add('pos-second');
+      else if (state.locale === 'system') refs.langGroup.classList.add('pos-third');
+      refs.langOpts.forEach((opt) => {
+        opt.classList.toggle('is-active', opt.dataset.locale === state.locale);
+      });
+    }
+    return locale;
+  }
+
+  function setLocale(next) {
+    if (!I18N_VALID_LOCALES.includes(next) || next === state.locale) return;
+    state.locale = next;
+    applyLanguage();
+    renderTranslatedViews();
+    scheduleLocalPrefsSave();
+  }
+
+  /* --------------------------------------------------------------------------
+   * Font availability. Every stack offered by the terminal font picker ends in
+   * `monospace`, so an uninstalled family renders exactly like the default and
+   * reads as a failed switch. Measure instead of guessing: a family is present
+   * only when it changes the probe width against BOTH generic baselines, since
+   * it could coincidentally match one of them.
+   * ------------------------------------------------------------------------*/
+  const GENERIC_FONT_FAMILIES = ['monospace', 'sans-serif', 'serif', 'cursive', 'fantasy', 'system-ui', 'ui-monospace'];
+  const fontAvailabilityCache = new Map();
+  let fontProbeElement = null;
+
+  function measureFontProbeWidth(font) {
+    if (!fontProbeElement) {
+      fontProbeElement = document.createElement('span');
+      fontProbeElement.setAttribute('data-i18n-off', '');
+      fontProbeElement.setAttribute('aria-hidden', 'true');
+      fontProbeElement.style.cssText = 'position:fixed;left:-9999px;top:0;visibility:hidden;'
+        + 'white-space:pre;font-variant-ligatures:none;';
+      document.body.appendChild(fontProbeElement);
+    }
+    fontProbeElement.style.font = font;
+    fontProbeElement.textContent = 'iiiiWWMM00@#%&|/\\_';
+    const width = fontProbeElement.getBoundingClientRect().width;
+    fontProbeElement.textContent = '';
+    return width;
+  }
+
+  function hasFontFamily(family) {
+    const key = family.toLowerCase();
+    if (fontAvailabilityCache.has(key)) return fontAvailabilityCache.get(key);
+    const quoted = `"${family.replace(/"/g, '')}"`;
+    const available = ['monospace', 'sans-serif'].some((baseline) => (
+      measureFontProbeWidth(`12px ${baseline}`) !== measureFontProbeWidth(`12px ${quoted}, ${baseline}`)
+    ));
+    fontAvailabilityCache.set(key, available);
+    return available;
+  }
+
+  function fontStackAvailable(cssStack) {
+    const families = String(cssStack || '').split(',')
+      .map((part) => part.trim().replace(/^["']|["']$/g, ''))
+      .filter((part) => part && !GENERIC_FONT_FAMILIES.includes(part.toLowerCase()));
+    return families.length > 0 && families.some(hasFontFamily);
   }
 
   function shouldEnhanceSelect(select) {
@@ -1602,6 +1817,7 @@
       item.className = 'custom-select-option';
       if (option.selected) item.classList.add('active');
       item.disabled = !!option.disabled;
+      if (option.title) item.title = option.title;
       item.dataset.selectIndex = String(index);
       item.textContent = option.textContent;
       menu.appendChild(item);
@@ -1832,8 +2048,8 @@
   function applyLayout(animate = true) {
     arrangeWorkspacePanels();
     appEl.classList.toggle('layout-expanded', state.layoutExpanded);
-    refs.layoutToggleLabel.textContent = '图形解析模式';
-    refs.layoutToggleBtn.title = '图形解析模式';
+    refs.layoutToggleLabel.textContent = t('图形解析模式');
+    refs.layoutToggleBtn.title = t('图形解析模式');
     if (animate && refs.layoutToggleBtn) {
       refs.layoutToggleBtn.animate([
         { transform: 'scale(0.98)' },
@@ -1842,7 +2058,10 @@
     }
     syncCompactLayoutState();
     renderCharts();
-    requestAnimationFrame(refreshParserResultsExpansionAvailability);
+    requestAnimationFrame(() => {
+      refreshParserResultsExpansionAvailability();
+      refitTerminal();
+    });
   }
 
   function setAdvancedPanel() {
@@ -1963,17 +2182,21 @@
 
   function syncVersionDisplay() {
     const localMode = isLocalOfflineRuntime();
-    const versionLabel = localMode ? `离线版本 v${VERSION}` : `在线版本 v${VERSION}`;
+    const versionLabel = t(localMode ? '离线版本 v{{version}}' : '在线版本 v{{version}}', { version: VERSION });
     appEl.classList.toggle('runtime-local', localMode);
     refs.versionInfoBtn?.classList.toggle('is-local', localMode);
-    if (refs.runtimeModeLabel) refs.runtimeModeLabel.textContent = `关于 v${VERSION}`;
+    if (refs.runtimeModeLabel) {
+      refs.runtimeModeLabel.textContent = t('关于 v{{version}}', { version: VERSION });
+    }
     if (refs.onlineModeChip) {
-      refs.onlineModeChip.textContent = localMode ? '访问在线模式' : '当前在线最新';
+      refs.onlineModeChip.textContent = localMode ? t('访问在线模式') : t('当前在线最新');
       refs.onlineModeChip.setAttribute('aria-hidden', 'false');
-      refs.onlineModeChip.title = localMode ? '打开在线版本' : '当前已是在线版本';
+      refs.onlineModeChip.title = localMode ? t('打开在线版本') : t('当前已是在线版本');
     }
     if (refs.versionModalTitle) {
-      refs.versionModalTitle.textContent = `SerialWeb ${versionLabel}`;
+      refs.versionModalTitle.textContent = t(localMode
+        ? 'SerialWeb 离线版本 v{{version}}'
+        : 'SerialWeb 在线版本 v{{version}}', { version: VERSION });
     }
     if (refs.versionCurrentLabel) {
       refs.versionCurrentLabel.textContent = versionLabel;
@@ -2042,9 +2265,9 @@
   function addInitialWebSerialStatusLog() {
     state.serial.supported = isWebSerialApiAvailable();
     if (state.serial.supported) {
-      addSystemLog('Web Serial API 已就绪，等待连接。', 'meta');
+      addSystemLog(t('Web Serial API 已就绪，等待连接。'), 'meta');
     } else {
-      addSystemLog(`不支持 Web Serial API。推荐使用 Chrome 或 Edge，并访问在线最新版本：${ONLINE_VERSION_URL}`, 'error');
+      addSystemLog(t('不支持 Web Serial API。推荐使用 Chrome 或 Edge，并访问在线最新版本：{{url}}', { url: ONLINE_VERSION_URL }), 'error');
     }
     updateSerialStatus();
   }

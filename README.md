@@ -18,7 +18,8 @@ It replaces the four tools a bench session normally needs:
 
 Auto-reconnect, release-on-blur, modem-signal control (DTR/RTS/CTS/DSR/DCD/RI/BREAK), timed /
 trigger / hotkey-preset send, and a full configuration that copies to the clipboard for
-reproducible setups.
+reproducible setups. The interface switches between 中文 and English at runtime (☰ → 语言),
+following the browser language by default.
 
 ## Try it
 
@@ -50,11 +51,13 @@ file names and section order; English is the source of truth.
 
 ```
 index.html      app.core.js  app.terminal.js  app.main.js   style.css
-bootstrap.js    app.loader.js  vendor/xterm/  build-release.py  docs/
+bootstrap.js    app.loader.js  app.lang.js  vendor/xterm/  build-release.py  docs/
 ```
 
-Plain static files, no framework and no bundler: the three `app.*.js` chunks share one IIFE
-closure and are concatenated at load time (source mode) or inlined (release build).
+Plain static files, no framework and no bundler: the three closure chunks (`app.core.js`,
+`app.terminal.js`, `app.main.js`) share one IIFE and are concatenated at load time (source mode)
+or inlined (release build); `app.lang.js` is a standalone dictionary of English strings keyed by
+their Chinese source.
 [Development](docs/development.md#the-shared-closure-constraint) explains the constraint and
 how to extend the app safely.
 

@@ -3,6 +3,19 @@
 Versions match the **About** dialog inside the app. Dates are `YYYY/M/D`.
 Chinese mirror: [zh-CN/CHANGELOG.md](zh-CN/CHANGELOG.md).
 
+## Unreleased
+
+- Added **language switching**: 中文 / English / Follow system in the system menu (`☰`). The
+  choice is applied instantly, needs no reload and persists; only the interface is translated,
+  captured log lines and terminal history keep the language they were written in.
+- The terminal **font picker is now honest**: families that are not installed on the machine are
+  greyed out with a tooltip, instead of silently rendering like the default monospace font.
+- Font and theme changes now apply reliably, including while the terminal is hidden (manual view or
+  the collapsed monitor) — the pending change is applied when the terminal becomes visible again.
+- Added a terminal **font size** field (8–48 px, default 12) and `Ctrl` + mouse wheel zoom over
+  the terminal. Both persist.
+- **Clear config** now also resets the language and the terminal font/size, and re-applies them live.
+
 ## v1.6 — 2026/9/6
 
 - Fixed the monitor occasionally inserting blank lines for certain receive patterns.

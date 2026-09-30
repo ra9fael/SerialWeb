@@ -86,11 +86,93 @@
     return getComputedStyle(document.body).getPropertyValue('--font-mono').trim() || 'Consolas, monospace';
   }
 
-  function updateTerminalFont() {
+  function clampTerminalFontSize(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return TERMINAL_FONT_SIZE_DEFAULT;
+    return Math.min(TERMINAL_FONT_SIZE_MAX, Math.max(TERMINAL_FONT_SIZE_MIN, Math.round(parsed)));
+  }
+
+  function getTerminalFontSize() {
+    return clampTerminalFontSize(refs.termFontSize?.value);
+  }
+
+  function terminalHostVisible() {
+    return Boolean(refs.termOutput && refs.termOutput.offsetParent !== null);
+  }
+
+  // xterm measures its cell size from the live host element, so a font or size
+  // change made while the terminal is hidden (manual view, expanded layout) is
+  // lost: the metrics come back as 0 and FitAddon quietly no-ops. Park the
+  // change and re-apply it from applyMonitorView() once the host is shown.
+  function applyTerminalMetrics() {
     const term = terminalRuntime.term;
     if (!term) return;
-    term.options.fontFamily = getTerminalFontFamily();
+    const fontFamily = getTerminalFontFamily();
+    const fontSize = getTerminalFontSize();
+    const stale = term.options.fontFamily !== fontFamily || term.options.fontSize !== fontSize;
+    if (stale) {
+      term.options.fontFamily = fontFamily;
+      term.options.fontSize = fontSize;
+    }
+    if (!terminalHostVisible()) {
+      terminalRuntime.pendingApply = true;
+      return;
+    }
+    const wasPending = terminalRuntime.pendingApply;
+    terminalRuntime.pendingApply = false;
+    if (wasPending) {
+      // The options setter only re-measures on an actual value change, so the
+      // cached 0 metrics survive a hidden edit; one step up and back forces it.
+      term.options.fontSize = fontSize + 1;
+      term.options.fontSize = fontSize;
+    }
+    if (stale || wasPending) {
+      try {
+        term.refresh(0, term.rows - 1);
+      } catch (error) {}
+    }
     refitTerminal();
+  }
+
+  function updateTerminalFont() {
+    applyTerminalMetrics();
+  }
+
+  function setTerminalFontSize(value) {
+    if (refs.termFontSize) refs.termFontSize.value = String(clampTerminalFontSize(value));
+    applyTerminalMetrics();
+  }
+
+  function handleTerminalWheel(event) {
+    if (!event.ctrlKey) return;
+    event.preventDefault();
+    const direction = event.deltaY < 0 ? 1 : -1;
+    const next = getTerminalFontSize() + direction;
+    if (clampTerminalFontSize(next) === getTerminalFontSize()) return;
+    setTerminalFontSize(next);
+    scheduleLocalPrefsSave();
+  }
+
+  // Every offered stack ends in `monospace`, so an uninstalled family renders
+  // exactly like the default and the switch looks broken. Say so instead.
+  function applyTerminalFontAvailability() {
+    const select = refs.termFont;
+    if (!select) return;
+    Array.from(select.options).forEach((option) => {
+      if (!option.value) {
+        option.disabled = false;
+        option.removeAttribute('title');
+        return;
+      }
+      const available = fontStackAvailable(option.value);
+      option.disabled = !available;
+      if (available) option.removeAttribute('title');
+      else option.setAttribute('title', '未检测到该字体，已回退为默认等宽字体');
+    });
+    syncCustomSelectShell(
+      select.parentElement?.classList.contains('custom-select') ? select.parentElement : null,
+      select
+    );
   }
 
   function ensureTerminalInstance() {
@@ -101,7 +183,7 @@
     if (!host) return null;
     const term = new Terminal({
       fontFamily: getTerminalFontFamily(),
-      fontSize: 12,
+      fontSize: getTerminalFontSize(),
       lineHeight: 1.25,
       cursorBlink: true,
       cursorStyle: 'block',
@@ -113,6 +195,7 @@
     term.loadAddon(fitAddon);
     term.open(host);
     term.onData(handleTermData);
+    host.addEventListener('wheel', handleTerminalWheel, { passive: false });
     try {
       fitAddon.fit();
     } catch (error) {}
@@ -284,8 +367,9 @@
       const term = ensureTerminalInstance();
       if (term && !terminalSession.hintShown) {
         terminalSession.hintShown = true;
-        term.writeln(TERMINAL_READY_HINT);
+        term.writeln(`\x1b[2m${t(TERMINAL_READY_HINT_TEXT)}\x1b[0m`);
       }
+      applyTerminalMetrics();
       requestAnimationFrame(() => {
         refitTerminal();
         term?.focus();

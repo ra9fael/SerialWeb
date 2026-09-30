@@ -362,8 +362,8 @@
   function updateSerialStatus() {
     refs.serialStatusDot.className = `status-dot ${state.serial.connected ? 'connected' : (state.serial.supported ? 'warn' : 'offline')}`;
     refs.serialStatusText.textContent = state.serial.connected
-      ? '串口已连接'
-      : (state.serial.supported ? '就绪，等待连接' : '不支持 Web Serial API');
+      ? t('串口已连接')
+      : (state.serial.supported ? t('就绪，等待连接') : t('不支持 Web Serial API'));
     refs.deviceVid.textContent = state.serial.deviceInfo.vid;
     refs.devicePid.textContent = state.serial.deviceInfo.pid;
     const hintActive = Date.now() < state.ui.connectHintUntil && !!state.ui.connectHintText;
@@ -374,12 +374,12 @@
     refs.connectBtn.classList.toggle('is-release-hold', releaseActive || reconnecting);
     refs.connectBtn.classList.toggle('is-hint-error', !state.serial.supported || (hintActive && state.ui.connectHintKind === 'error'));
     if (!state.serial.supported) {
-      refs.connectBtn.textContent = '不支持 Web Serial API';
-      refs.connectBtn.title = `推荐使用 Chrome 或 Edge，并访问在线最新版本：${ONLINE_VERSION_URL}`;
+      refs.connectBtn.textContent = t('不支持 Web Serial API');
+      refs.connectBtn.title = t('推荐使用 Chrome 或 Edge，并访问在线最新版本：{{url}}', { url: ONLINE_VERSION_URL });
       updateSignalControlsUI();
       return;
     }
-    refs.connectBtn.title = state.serial.connected ? '断开串口连接' : '连接串口设备';
+    refs.connectBtn.title = state.serial.connected ? t('断开串口连接') : t('连接串口设备');
     if (hintActive) {
       refs.connectBtn.textContent = state.ui.connectHintText;
       updateSignalControlsUI();
@@ -387,26 +387,26 @@
     }
     if (reconnecting) {
       refs.connectBtn.textContent = applyingOptions
-        ? '正在应用参数 | 请稍候'
+        ? t('正在应用参数 | 请稍候')
         : (
             state.serial.reconnectFailureKind && state.serial.reconnectFailureKind !== 'missing'
-              ? '重连失败 | 串口可能被占用'
-              : '正在重连 | 点击取消重连'
+              ? t('重连失败 | 串口可能被占用')
+              : t('正在重连 | 点击取消重连')
           );
     } else if (releaseActive) {
-      refs.connectBtn.textContent = `失焦断连 | ${formatDuration(state.serial.blurReleaseElapsedMs)}`;
+      refs.connectBtn.textContent = t('失焦断连 | {{elapsed}}', { elapsed: formatDuration(state.serial.blurReleaseElapsedMs) });
     } else if (state.serial.connected) {
       const elapsed = formatDuration(Date.now() - state.serial.connectedAt);
-      refs.connectBtn.textContent = `断开连接 | ${elapsed}`;
+      refs.connectBtn.textContent = t('断开连接 | {{elapsed}}', { elapsed });
     } else {
-      refs.connectBtn.textContent = '连接设备 | 当前未连接';
+      refs.connectBtn.textContent = t('连接设备 | 当前未连接');
     }
     updateSignalControlsUI();
   }
 
   function signalValueLabel(value) {
-    if (value === true) return '开';
-    if (value === false) return '关';
+    if (value === true) return t('开');
+    if (value === false) return t('关');
     return '-';
   }
 
@@ -458,8 +458,8 @@
       chip.classList.toggle('is-disabled', disabled);
     });
     refs.signalRtsChip.title = rtsManaged
-      ? 'RTS/CTS 流控生效时，RTS 由系统自动接管。'
-      : '手动控制 RTS';
+      ? t('RTS/CTS 流控生效时，RTS 由系统自动接管。')
+      : t('手动控制 RTS');
 
     const inputDefs = [
       { el: refs.signalCtsReadout, valueEl: refs.signalCtsValue, value: state.serial.signalInputs.cts },
@@ -924,8 +924,8 @@
     }
     updateSerialStatus();
     if (!state.serial.reconnectNoticeShown && kind !== 'missing') {
-      toast('重连失败', displayDetail, 'error');
-      addSystemLog(`重连失败: ${displayDetail}`, 'error');
+      toast(t('重连失败'), displayDetail, 'error');
+      addSystemLog(t('重连失败: {{detail}}', { detail: displayDetail }), 'error');
       state.serial.reconnectNoticeShown = true;
     }
   }
@@ -992,7 +992,7 @@
 
   async function connectSerial(source = 'manual', preferredPort = null, reconnectSession = 0) {
     if (!state.serial.supported) {
-      toast('不支持 Web Serial API', `推荐使用 Chrome 或 Edge，并访问在线最新版本：${ONLINE_VERSION_URL}`, 'error');
+      toast('不支持 Web Serial API', t('推荐使用 Chrome 或 Edge，并访问在线最新版本：{{url}}', { url: ONLINE_VERSION_URL }), 'error');
       return false;
     }
 
@@ -1041,7 +1041,7 @@
       await applySerialSignalOutputs();
       startSerialSignalPolling();
       syncAutoSendRuntime();
-      addSystemLog('串口已连接，波特率 ' + options.baudRate + '。', 'meta');
+      addSystemLog(t('串口已连接，波特率 {{baudRate}}。', { baudRate: options.baudRate }), 'meta');
       readLoop();
       if (!isSerialOptionsApplyReason(source)) {
         const latestSignature = getSerialOpenOptionsSignature(getSerialOpenOptions());
@@ -1052,7 +1052,7 @@
       return true;
     } catch (error) {
       if (error && error.name === 'NotFoundError') {
-        addSystemLog('用户取消了串口选择。', 'meta');
+        addSystemLog(t('用户取消了串口选择。'), 'meta');
         return false;
       }
       console.error(error);
@@ -1072,9 +1072,9 @@
       if (source === 'reconnect') {
         surfaceReconnectFailure(detail, reconnectFailureKind);
       } else {
-        toast('连接失败', detail, 'error');
+        toast(t('连接失败'), detail, 'error');
         showConnectButtonHint(shortConnectHint('连接失败'), 'error');
-        addSystemLog(`连接失败: ${detail}`, 'error');
+        addSystemLog(t('连接失败: {{detail}}', { detail }), 'error');
         resetReconnectState();
       }
       state.serial.reader = null;
@@ -1210,11 +1210,11 @@
       } else {
         cleanupSerialResources(resources);
       }
-      addSystemLog('串口已断开。', 'meta');
+      addSystemLog(t('串口已断开。'), 'meta');
     } else if (blurRelease || state.serial.blurReleaseActive) {
-      addSystemLog('页面失焦，已释放串口连接。', 'meta');
+      addSystemLog(t('页面失焦，已释放串口连接。'), 'meta');
     } else if (reason === 'lost') {
-      addSystemLog('串口连接已丢失。', 'error');
+      addSystemLog(t('串口连接已丢失。'), 'error');
     }
     if (reason === 'lost') {
       if (awaitCleanup) {
@@ -1260,7 +1260,7 @@
               queueRxBytes(bytes, timestamp, { source: 'serial-read' });
             } catch (processingError) {
               console.error('queueRxBytes failed', processingError);
-              addSystemLog(`接收数据处理失败: ${processingError?.message || processingError}`, 'error');
+              addSystemLog(t('接收数据处理失败: {{error}}', { error: processingError?.message || processingError }), 'error');
             }
           }
         }
@@ -1320,7 +1320,7 @@
     } catch (error) {
       console.error(error);
       toast('发送失败', error.message || '串口写入失败。', 'error');
-      addSystemLog('发送失败：' + (error.message || '串口写入失败。'), 'error');
+      addSystemLog(t('发送失败：{{message}}', { message: error.message || t('串口写入失败。') }), 'error');
       return false;
     }
   }
@@ -1376,8 +1376,8 @@
     refs.stopRecordBtn.classList.remove('is-recording', 'is-playback', 'is-playing');
     refs.stopRecordBtn.title = '开始录制';
     renderTimelineSelect();
-    toast('录制已保存', `${timeline.name} 已归档，共 ${(timeline.rawChunks || []).length} 段。`, 'success');
-    addSystemLog(`录制已保存：${timeline.name}（${(timeline.rawChunks || []).length} 段）。`, 'meta');
+    toast(t('录制已保存'), t('{{name}} 已归档，共 {{count}} 段。', { name: timeline.name, count: (timeline.rawChunks || []).length }), 'success');
+    addSystemLog(t('录制已保存：{{name}}（{{count}} 段）。', { name: timeline.name, count: (timeline.rawChunks || []).length }), 'meta');
     scheduleRefresh();
   }
 
@@ -1617,7 +1617,7 @@
           <div class="timeline-pick-main">
             <button class="timeline-pick-item ${isActive ? 'active' : ''}" data-timeline-pick="${escapeHtml(timeline.id)}">
               <span class="timeline-pick-name">${escapeHtml(timeline.name)}</span>
-              <span class="timeline-pick-meta">${(timeline.rawChunks || []).length} 段 · ${formatTimelineClock(timeline.durationMs)}</span>
+              <span class="timeline-pick-meta">${escapeHtml(t('{{count}} 段 · {{duration}}', { count: (timeline.rawChunks || []).length, duration: formatTimelineClock(timeline.durationMs) }))}</span>
             </button>
             <button class="timeline-export-btn ${isTimelineExportOpen ? 'active' : ''}" data-export-toggle="${escapeHtml(timeline.id)}" data-export-kind="timeline" title="导出时间线" aria-label="导出时间线">
               <svg class="timeline-export-icon" viewBox="0 0 24 24" fill="none" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1664,7 +1664,7 @@
   function renderStats() {
     const timeline = getActiveTimeline();
     const isRealtime = !timeline;
-    const timelineName = isRealtime ? '实时模式' : '回放模式';
+    const timelineName = t(isRealtime ? '实时模式' : '回放模式');
     const activeRawChunks = getActiveRawChunks();
     const txBytes = isRealtime
       ? String(state.session.txBytes || 0)
@@ -1675,7 +1675,7 @@
     const uptime = formatDuration(Date.now() - state.session.startMs);
     const connected = state.serial.connected;
     if (refs.statUptime) refs.statUptime.textContent = uptime;
-    if (refs.statTimeline) refs.statTimeline.textContent = isRealtime ? timelineName : (timeline?.name || '回放模式');
+    if (refs.statTimeline) refs.statTimeline.textContent = isRealtime ? timelineName : (timeline?.name || t('回放模式'));
     if (refs.statTxCount) refs.statTxCount.textContent = txBytes;
     if (refs.statRxCount) refs.statRxCount.textContent = rxBytes;
     if (refs.monitorMetaMode) refs.monitorMetaMode.textContent = isRealtime ? (connected ? timelineName : '-') : timelineName;
@@ -1710,7 +1710,7 @@
       const locked = state.ui.liveFreezeMode === 'locked';
       refs.timelineFreezeBtn.classList.toggle('is-locked', locked);
       refs.timelineFreezeBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
-      refs.timelineFreezeBtn.title = locked ? '解除冻结实时视图' : '冻结实时视图';
+      refs.timelineFreezeBtn.title = locked ? t('解除冻结实时视图') : t('冻结实时视图');
     }
     if (refs.timelineFreezeIcon) {
       refs.timelineFreezeIcon.innerHTML = state.ui.liveFreezeMode === 'locked'
@@ -1721,19 +1721,19 @@
 
     if (isRealtime) {
       const lastChunk = state.session.rawChunks[state.session.rawChunks.length - 1];
-      const latestText = lastChunk ? `最新 ${formatStamp(lastChunk.timestamp)}` : '等待串口数据';
-      refs.timelineLabel.textContent = '实时模式';
+      const latestText = lastChunk ? t('最新 {{stamp}}', { stamp: formatStamp(lastChunk.timestamp) }) : t('等待串口数据');
+      refs.timelineLabel.textContent = t('实时模式');
       refs.timelineStamp.textContent = state.recording.active
-        ? `录制 ${formatDuration(Date.now() - state.recording.startedAt)} · ${latestText}`
+        ? t('录制 {{elapsed}} · {{latest}}', { elapsed: formatDuration(Date.now() - state.recording.startedAt), latest: latestText })
         : latestText;
       if (!state.serial.connected || reconnecting || releaseActive) {
         refs.stopRecordBtn.textContent = '';
         refs.stopRecordBtn.classList.add('is-detached');
-        refs.stopRecordBtn.title = reconnecting || releaseActive ? '连接暂停中' : '串口未连接';
+        refs.stopRecordBtn.title = reconnecting || releaseActive ? t('连接暂停中') : t('串口未连接');
       } else {
         refs.stopRecordBtn.textContent = state.recording.active ? '' : 'REC';
         refs.stopRecordBtn.classList.toggle('is-recording', state.recording.active);
-        refs.stopRecordBtn.title = state.recording.active ? '结束录制' : '开始录制';
+        refs.stopRecordBtn.title = state.recording.active ? t('结束录制') : t('开始录制');
       }
     } else {
       refs.timelineLabel.textContent = timeline.name;
@@ -1741,7 +1741,7 @@
       refs.stopRecordBtn.textContent = '';
       refs.stopRecordBtn.classList.add('is-playback');
       refs.stopRecordBtn.classList.toggle('is-playing', state.playback.playing);
-      refs.stopRecordBtn.title = state.playback.playing ? '暂停回放' : '播放回放';
+      refs.stopRecordBtn.title = state.playback.playing ? t('暂停回放') : t('播放回放');
     }
   }
 
@@ -1773,20 +1773,20 @@
   function getPresetMonitorTag(metadata = {}) {
     if (!metadata?.presetSend && !metadata?.presetExpectedMatch && !metadata?.presetDescription) return null;
     const status = getPresetMonitorStatus(metadata);
-    const label = String(metadata.presetDescription || metadata.presetExpectedMatch || '预设发送').trim() || '预设发送';
+    const label = String(metadata.presetDescription || metadata.presetExpectedMatch || t('预设发送')).trim() || t('预设发送');
     const tone = status === 'success' ? 'green' : status === 'error' ? 'red' : 'blue';
     const text = status === 'success'
-      ? `√ 预设：${label}`
+      ? t('√ 预设：{{label}}', { label })
       : status === 'error'
-        ? `× 预设：${label}`
-        : `预设：${label}`;
+        ? t('× 预设：{{label}}', { label })
+        : t('预设：{{label}}', { label });
     return { text, tone };
   }
 
   function getConditionMonitorTag(metadata = {}) {
     if (!metadata?.conditionMatched && !metadata?.conditionSend && !metadata?.conditionDescription) return null;
-    const label = String(metadata.conditionDescription || '触发发送').trim() || '触发发送';
-    return { text: `触发：${label}`, tone: 'green' };
+    const label = String(metadata.conditionDescription || t('触发发送')).trim() || t('触发发送');
+    return { text: t('触发：{{label}}', { label }), tone: 'green' };
   }
 
   function getMonitorInlineTags(metadata = {}) {
@@ -1858,7 +1858,7 @@
         </div>
       `);
     }
-    refs.terminal.innerHTML = parts.join('') || '<div class="panel-subtitle">当前没有日志内容</div>';
+    refs.terminal.innerHTML = parts.join('') || `<div class="panel-subtitle">${escapeHtml(t('当前没有日志内容'))}</div>`;
     if (shouldStickToBottom) {
       refs.terminal.scrollTop = refs.terminal.scrollHeight;
     }
@@ -3127,7 +3127,7 @@
           <span class="${valueClass}">${escapeHtml(display)}</span>
         </div>
       `;
-    }).join('') || '<div class="panel-subtitle">暂无解析结果</div>';
+    }).join('') || `<div class="panel-subtitle">${escapeHtml(t('暂无解析结果'))}</div>`;
     refreshParserResultsExpansionAvailability();
     if (
       detectionReady
@@ -3161,10 +3161,10 @@
   function createChart(type) {
     const normalizedType = type === 'fft' ? 'fft' : type === 'bar' ? 'bar' : 'time';
     const chartTitle = normalizedType === 'time'
-      ? `时域图 ${chartIdCounter}`
+      ? t('时域图 {{index}}', { index: chartIdCounter })
       : normalizedType === 'fft'
-        ? `频域图 ${chartIdCounter}`
-        : `柱状图 ${chartIdCounter}`;
+        ? t('频域图 {{index}}', { index: chartIdCounter })
+        : t('柱状图 {{index}}', { index: chartIdCounter });
     return {
       id: uid('chart'),
       type: normalizedType,
@@ -3280,7 +3280,7 @@
     if (chart.alignScale || !canOpenChartViewPicker(chart)) return '统一量程';
     if (chart.viewMode !== 'manual') return '差异量程';
     const key = ensureChartYAxisBinding(chart);
-    return `调整通道:${key === '__all__' ? '全部' : getFieldDisplayLabel(key)}`;
+    return t('调整通道:{{channel}}', { channel: key === '__all__' ? t('全部') : getFieldDisplayLabel(key) });
   }
 
   function getBindingDragOffsetDelta(startBindingState, yPixelShift, plotHeight) {
@@ -4284,7 +4284,7 @@
       const scrollState = captureChartScrollState();
       refs.chartList.innerHTML = state.charts.length
         ? state.charts.map((chart) => renderChartPanel(chart)).join('')
-        : '<div class="panel-subtitle">当前还没有图表，点击上方添加时域或频域图。</div>';
+        : `<div class="panel-subtitle">${escapeHtml(t('当前还没有图表，点击上方添加时域或频域图。'))}</div>`;
       refs.chartList.dataset.rendered = 'true';
       syncCustomSelects(refs.chartList);
       restoreChartScrollState(scrollState);
@@ -4681,13 +4681,13 @@
     });
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    ctx.fillText(xTitle, left + plotW * 0.5, height - 7);
+    ctx.fillText(t(xTitle), left + plotW * 0.5, height - 7);
     ctx.save();
     ctx.translate(14, top + plotH * 0.5);
     ctx.rotate(-Math.PI / 2);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(yTitle, 0, 0);
+    ctx.fillText(t(yTitle), 0, 0);
     ctx.restore();
     ctx.restore();
   }
@@ -4785,9 +4785,12 @@
       : (controlsAllChannels
           ? yBase.max
           : (Number.isFinite(bindingView?.baseMax) ? bindingView.baseMax : selectedAutoRange.max));
-    const baseYTitle = '幅值';
+    const baseYTitle = t('幅值');
     const yAxisTitle = !chart.alignScale && yAxisBindingKey
-      ? `${baseYTitle}（${yAxisBindingKey === '__all__' ? '全部通道' : getFieldDisplayLabel(yAxisBindingKey)}）`
+      ? t('{{base}}（{{channel}}）', {
+        base: baseYTitle,
+        channel: yAxisBindingKey === '__all__' ? t('全部通道') : getFieldDisplayLabel(yAxisBindingKey)
+      })
       : baseYTitle;
     const yRange = chart.viewMode === 'manual'
       ? getViewRange(
@@ -5202,8 +5205,11 @@
           ? globalAmpMax
           : (Number.isFinite(chart.bindingViewY?.[yAxisBindingKey]?.baseMax) ? chart.bindingViewY[yAxisBindingKey].baseMax : selectedAutoRange.ampMax));
     const yAxisTitle = !chart.alignScale && yAxisBindingKey
-      ? `幅值（${yAxisBindingKey === '__all__' ? '全部通道' : getFieldDisplayLabel(yAxisBindingKey)}）`
-      : '幅值';
+      ? t('{{base}}（{{channel}}）', {
+        base: t('幅值'),
+        channel: yAxisBindingKey === '__all__' ? t('全部通道') : getFieldDisplayLabel(yAxisBindingKey)
+      })
+      : t('幅值');
     const yRange = chart.viewMode === 'manual'
       ? getAnchoredPositiveRange(
           manualBaseYMax,
@@ -5462,6 +5468,11 @@
       {
         tag: '<script src="vendor/xterm/xterm-addon-fit.js"></script>',
         file: 'vendor/xterm/xterm-addon-fit.js',
+        wrap: (source) => `<script>\n${escapeInlineScript(source)}\n</script>`
+      },
+      {
+        tag: '<script src="app.lang.js"></script>',
+        file: 'app.lang.js',
         wrap: (source) => `<script>\n${escapeInlineScript(source)}\n</script>`
       },
       {
@@ -5798,7 +5809,7 @@
       toast('无法导出', '时间线仅支持 BIN / TXT / CSV。', 'warn');
       return;
     }
-    toast('导出完成', `${timeline.name} 已导出为 ${format.toUpperCase()}。`, 'success');
+    toast('导出完成', t('{{name}} 已导出为 {{format}}。', { name: timeline.name, format: format.toUpperCase() }), 'success');
   }
 
   function buildDerivedExportRuntimeForTimeline(timeline) {
@@ -5874,7 +5885,7 @@
       toast('无法导出', '解析结果仅支持 TXT / CSV。', 'warn');
       return;
     }
-    toast('导出完成', `${timeline.name} 的解析结果已导出为 ${format.toUpperCase()}。`, 'success');
+    toast('导出完成', t('{{name}} 的解析结果已导出为 {{format}}。', { name: timeline.name, format: format.toUpperCase() }), 'success');
   }
 
   async function importTimelineFromFile(file) {
@@ -5899,7 +5910,7 @@
       const timeline = buildTimelineFromImportedPayload(payload);
       state.timelines.push(timeline);
       setActiveTimeline(timeline.id);
-      toast('导入完成', `${timeline.name} 已添加到时间线列表。`, 'success');
+      toast('导入完成', t('{{name}} 已添加到时间线列表。', { name: timeline.name }), 'success');
     } catch (error) {
       console.error(error);
       toast('导入失败', error.message || '无法解析时间线数据。', 'error');
@@ -6044,6 +6055,7 @@
     restoringLocalPrefs = true;
     try {
       state.theme = (snapshot.theme === 'system' || snapshot.theme === 'dark' || snapshot.theme === 'light') ? snapshot.theme : state.theme;
+      if (I18N_VALID_LOCALES.includes(snapshot.locale)) state.locale = snapshot.locale;
       state.layoutExpanded = Boolean(snapshot.layout?.expanded);
       state.ui.monitorView = snapshot.layout?.monitorView === 'manual' ? 'manual' : 'terminal';
       if (refs.termFont && typeof snapshot.layout?.terminalFont === 'string') {
@@ -6052,6 +6064,8 @@
           refs.termFont.value = fontValue;
         }
       }
+      const savedFontSize = clampTerminalFontSize(snapshot.layout?.terminalFontSize);
+      if (refs.termFontSize) refs.termFontSize.value = String(savedFontSize);
       if (refs.termSkin && typeof snapshot.layout?.terminalSkin === 'string') {
         const skinValue = snapshot.layout.terminalSkin;
         if (!skinValue || Array.from(refs.termSkin.options).some((option) => option.value === skinValue)) {
@@ -6181,6 +6195,10 @@
     applyLocalPrefsSnapshot(snapshot);
     syncUserConfigControls();
     invalidateDerivedCaches();
+    applyLanguage();
+    renderTranslatedViews();
+    updateTerminalFont();
+    updateTerminalTheme();
     scheduleRefresh();
     if (reconfigureSerial) {
       scheduleSerialOpenOptionsApply('serial-options-apply', { immediate: true });
@@ -6217,8 +6235,14 @@
       receiveContentSchemaVersion: RECEIVE_CONTENT_SCHEMA_VERSION,
       savedAt: Date.now(),
       theme: browserThemeQuery.matches ? 'dark' : 'light',
+      locale: 'system',
       layout: {
         expanded: false,
+        monitorView: 'terminal',
+        terminalFont: '',
+        terminalFontSize: TERMINAL_FONT_SIZE_DEFAULT,
+        terminalSkin: '',
+        terminalNewline: 'n',
         sidebarCollapsed: false,
         parserResultsExpanded: false,
         sendExtensionHeight: 0
@@ -6281,10 +6305,12 @@
       receiveContentSchemaVersion: RECEIVE_CONTENT_SCHEMA_VERSION,
       savedAt: Date.now(),
       theme: state.theme,
+      locale: state.locale,
       layout: {
         expanded: Boolean(state.layoutExpanded),
         monitorView: state.ui.monitorView === 'terminal' ? 'terminal' : 'manual',
         terminalFont: refs.termFont?.value || '',
+        terminalFontSize: getTerminalFontSize(),
         terminalSkin: refs.termSkin?.value || '',
         terminalNewline: refs.termNewline?.value || 'n',
         sidebarCollapsed: Boolean(state.ui.sidebarCollapsed),
@@ -7218,6 +7244,9 @@
         handleThemeChange(opt.dataset.theme);
       });
     });
+    refs.langOpts.forEach((opt) => {
+      opt.addEventListener('click', () => setLocale(opt.dataset.locale));
+    });
     refs.systemMenuBtn.addEventListener('click', () => toggleMenu(refs.systemMenu));
     refs.downloadLocalLink?.addEventListener('click', downloadLocalIndexHtml);
     refs.versionInfoBtn?.addEventListener('click', (event) => {
@@ -7388,6 +7417,11 @@
       scheduleLocalPrefsSave();
     });
     refs.termNewline?.addEventListener('change', () => {
+      scheduleLocalPrefsSave();
+    });
+    refs.termFontSize?.addEventListener('change', () => {
+      const raw = refs.termFontSize.value;
+      setTerminalFontSize(raw === '' ? TERMINAL_FONT_SIZE_DEFAULT : raw);
       scheduleLocalPrefsSave();
     });
     refs.mobileConfigBackdrop.addEventListener('click', () => {
@@ -7886,6 +7920,38 @@
     }
   }
 
+  // A locale switch changes text that lives in the static markup, text that
+  // renderers copy out of the DOM (select labels, menu rows), and text that
+  // JavaScript writes directly. Rebuild every view that can hold a label, then
+  // walk the document once so nothing keeps a stale language.
+  function renderTranslatedViews() {
+    applyTerminalFontAvailability();
+    state.ui.timelinePickerSignature = '';
+    if (refs.chartList) delete refs.chartList.dataset.rendered;
+    applyTheme();
+    applyLayout(false);
+    setAdvancedPanel();
+    updateParserModeUI();
+    updateSignalControlsUI();
+    syncSendInputModeUI();
+    renderBinarySchemaTable();
+    renderExtensionButtons();
+    renderExtensionPanel();
+    renderSendConfigLists('all');
+    syncUserConfigMenuUi();
+    syncVersionDisplay();
+    updateSerialStatus();
+    applyMonitorView();
+    renderTimelineSelect();
+    renderStats();
+    renderTimelineBar();
+    renderMonitor();
+    renderDerivedViews();
+    renderCharts(true);
+    syncCustomSelects(appEl);
+    translateDom(document.body);
+  }
+
   function initializeDefaults() {
     localStorage.removeItem('wsl-layout');
     applyLocalPrefsSnapshot(readLocalPrefs());
@@ -7945,6 +8011,12 @@
     syncCustomSelects(appEl);
     disableSpellcheck(appEl);
     addInitialWebSerialStatusLog();
+    applyLanguage();
+    startI18nDomWatcher();
+    requestAnimationFrame(() => {
+      applyTerminalFontAvailability();
+      renderTerminalJumpButton();
+    });
     requestAnimationFrame(() => {
       appEl.classList.remove(
         'send-extension-restoring',

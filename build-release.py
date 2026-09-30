@@ -33,6 +33,9 @@ INLINE_ASSETS = [
     ('<script src="bootstrap.js"></script>', 'bootstrap.js', 'script'),
     ('<script src="vendor/xterm/xterm.js"></script>', 'vendor/xterm/xterm.js', 'script'),
     ('<script src="vendor/xterm/xterm-addon-fit.js"></script>', 'vendor/xterm/xterm-addon-fit.js', 'script'),
+    # The locale dictionary is a standalone script: it must be inlined above the
+    # app chunks because the engine in app.core.js reads window.SERIALWEB_I18N.
+    ('<script src="app.lang.js"></script>', 'app.lang.js', 'script'),
     # The loader tag is replaced by the three app chunks concatenated into ONE
     # inline script: they share a single closure and must be parsed together.
     ('<script src="app.loader.js"></script>', ['app.core.js', 'app.terminal.js', 'app.main.js'], 'script'),
