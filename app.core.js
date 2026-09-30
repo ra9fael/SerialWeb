@@ -7,7 +7,7 @@
  *   bootstrap.js -> vendor/xterm/* -> app.core.js -> app.terminal.js -> app.main.js
  * ==========================================================================*/
 (() => {
-  const VERSION = '1.6';
+  const VERSION = '0.2.0';
   const ONLINE_VERSION_URL = 'https://conductance-lab.xyz/SerialWeb/';
   const VERSION_MODAL_SEEN_KEY = 'serialweb:version-modal-seen';
   const MAX_DERIVED_LOG_LINES = 320;

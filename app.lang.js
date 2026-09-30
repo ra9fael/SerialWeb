@@ -17,7 +17,6 @@
   var en = {
     /* Brand, chrome, menus */
     '系统菜单': 'System Menu',
-    'SerialWeb 在线版本 v1.6': 'SerialWeb online v1.6',
     '主题': 'Theme',
     '主题：': 'Theme:',
     '浅色模式': 'Light',
@@ -43,7 +42,6 @@
     '电导实验室主页': 'Conductance-lab home',
     '电导实验室串口监视与图形解析工具': 'Serial monitor and graph parsing tool by Conductance-lab',
     '关于 v{{version}}': 'About v{{version}}',
-    '关于 v1.6': 'About v1.6',
     '更新日志': 'Changelog',
     '关闭版本信息': 'Close version info',
     '关闭提示': 'Dismiss',
@@ -51,7 +49,6 @@
     '最新在线版本': 'Latest online version',
     '当前在线最新': 'Already the latest',
     '在线版本 v{{version}}': 'Online v{{version}}',
-    'SerialWeb 在线版本 v1.6': 'SerialWeb Online v1.6',
     'SerialWeb 在线版本 v{{version}}': 'SerialWeb Online v{{version}}',
     '离线版本 v{{version}}': 'Offline v{{version}}',
     'SerialWeb 离线版本 v{{version}}': 'SerialWeb Offline v{{version}}',
@@ -362,6 +359,12 @@
     '行类型（按表格下拉顺序）： • 帧头 — 帧起始标识，16进制 留空则跳过 • 帧尾 — 帧结束标识，16进制 留空则不检查帧尾 • 数据 — 数值数据，需选择 数据类型 + 填写标签名 • 校验和 — 自动计算 SUM8 仅覆盖 data 行的字节 • 间隔符 — 留空占位 1 字节 填入则匹配指定16进制 数值大小端说明： LE = Little Endian（低位在前） BE = Big Endian（高位在前） 可用数据类型： UInt8 / Int8 UInt16 LE/BE / Int16 LE/BE UInt32 LE/BE / Int32 LE/BE Float32 LE/BE / Bool(8bit)': 'Row types (in the order of the table drop-downs): • Header — frame start, hexadecimal, leave empty to skip • Footer — frame end, hexadecimal, leave empty to skip the check • Data — numeric value, needs a data type plus a label • Checksum — SUM8 computed automatically over the Data rows only • Gap — empty means one placeholder byte, filled means match that byte Endianness: LE = Little Endian (low byte first) BE = Big Endian (high byte first) Data types: UInt8 / Int8 UInt16 LE/BE / Int16 LE/BE UInt32 LE/BE / Int32 LE/BE Float32 LE/BE / Bool(8bit)',
 
     /* Changelog: feature blurbs per release */
+    'v0.2.0 版本 · 26/10/1': 'v0.2.0 · 26/10/1',
+    '新增语言切换：系统菜单 ☰ 中提供 中文 / English / 跟随系统。切换即时生效、无需刷新并会被保存；只有界面会被翻译，已捕获的日志行与终端历史保持写入时的语言。': 'Added language switching: 中文 / English / Follow system in the system menu (☰). The choice is applied instantly, needs no reload and persists; only the interface is translated, captured log lines and terminal history keep the language they were written in.',
+    '终端字体选择器现在诚实了：未检测到安装的字体族会被置灰并给出提示，而不是像以前那样静默地渲染成与默认等宽字体完全相同的样子。': 'The terminal font picker is now honest: families that are not installed on the machine are greyed out with a tooltip, instead of silently rendering like the default monospace font.',
+    '字体与主题改动在终端隐藏时（手动视图或监视器收起）也能可靠生效——改动会被挂起，待终端重新可见时应用。': 'Font and theme changes now apply reliably, including while the terminal is hidden (manual view or the collapsed monitor) — the pending change is applied when the terminal becomes visible again.',
+    '新增终端字号输入框（8–48 px，默认 12），并支持终端内 Ctrl + 鼠标滚轮缩放。两者都会被持久化。': 'Added a terminal font size field (8–48 px, default 12) and Ctrl + mouse wheel zoom over the terminal. Both persist.',
+    '清空配置现在同时重置语言与终端字体/字号，并立即重新应用。': 'Clear config now also resets the language and the terminal font/size, and re-applies them live.',
     '支持串口监视、设备连接管理、VID/PID 显示、串口参数配置及硬件流控与信号控制。': 'Serial monitoring, device connection manager, VID/PID display, port settings, hardware flow control and signal control.',
     '支持手动、定时、触发和预设发送等串口调试工作流。': 'Manual, timed, trigger-based and preset sending workflows for serial debugging.',
     '支持图形解析，含文本解析、十六进制结构解析、自动识别规则及实时结果展示。': 'Graph parsing with text rules, hex structure decoding, auto-detected patterns and live results.',
@@ -403,7 +406,7 @@
     'v1.3 版本 · 26/6/30': 'v1.3 · 26/6/30',
     'v1.4 版本 · 26/7/4': 'v1.4 · 26/7/4',
     'v1.5 版本 · 26/7/9': 'v1.5 · 26/7/9',
-    'v1.6 版本 · 26/9/6': 'v1.6 · 26/9/6'
+    'v0.1.0 版本 · 26/9/30': 'v0.1.0 · 26/9/30 (was v1.6)'
   };
 
   window.SERIALWEB_I18N = { en: en };

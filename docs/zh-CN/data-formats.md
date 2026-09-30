@@ -14,7 +14,7 @@ SerialWeb 写出或持久化的一切格式，便于其他工具读取抓取数�
 | 键 | 写入方 | 用途 |
 | --- | --- | --- |
 | `serialweb:prefs` | 应用（防抖 500 ms，页面卸载时刷新） | 完整的工作配置——结构见下文。`bootstrap.js` 在首次绘制前读取它，以套用主题和布局。 |
-| `serialweb:version-modal-seen` | 应用 | 版本说明弹窗被关闭后写入版本字符串（例如 `"1.6"`），以免每次加载都重新打开。 |
+| `serialweb:version-modal-seen` | 应用 | 版本说明弹窗被关闭后写入版本字符串（被关闭的那一次的版本号），以免每次加载都重新打开。 |
 | `wsl-layout` | 遗留 | 没有任何代码读取它；启动时删除，重置时一并清除。旧版本使用过。 |
 
 **清空配置** 会删除上述键，外加 `localStorage` 和 `sessionStorage` 中**任何**以
@@ -27,7 +27,7 @@ SerialWeb 写出或持久化的一切格式，便于其他工具读取抓取数�
 
 ```jsonc
 {
-  "appVersion": "1.6",
+  "appVersion": "0.2.0",
   "receiveContentSchemaVersion": 1,
   "savedAt": 1767100000000,          // Date.now()，仅供参考
   "theme": "system",                 // "system" | "light" | "dark"
@@ -128,7 +128,7 @@ SerialWeb 写出或持久化的一切格式，便于其他工具读取抓取数�
 
 **粘贴导入** 要求 `type === "SerialWebUserConfig"` **且** `version === 1`；
 其他内容一律以 `剪贴板中未检测到有效的配置。` 拒绝。成功后设置立即生效，包括在帧参数发生
-变化时重新打开串口。没有面向未来版本的迁移路径——v2 文件无法在 v1.6 中载入。
+变化时重新打开串口。没有面向未来版本的迁移路径——v2 文件无法在当前版本中载入。
 
 ## 时间线文件
 

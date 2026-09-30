@@ -2,8 +2,10 @@
 
 Versions match the **About** dialog inside the app. Dates are `YYYY/M/D`.
 Chinese mirror: [zh-CN/CHANGELOG.md](zh-CN/CHANGELOG.md).
+This repository is tagged from `v0.1.0`; the entries below it keep the upstream `1.x` numbers
+they shipped with. `tools/set-version.py` writes every section but those.
 
-## Unreleased
+## v0.2.0 — 2026/10/1
 
 - Added **language switching**: 中文 / English / Follow system in the system menu (`☰`). The
   choice is applied instantly, needs no reload and persists; only the interface is translated,
@@ -16,7 +18,7 @@ Chinese mirror: [zh-CN/CHANGELOG.md](zh-CN/CHANGELOG.md).
   the terminal. Both persist.
 - **Clear config** now also resets the language and the terminal font/size, and re-applies them live.
 
-## v1.6 — 2026/9/6
+## v0.1.0 — 2026/9/30（原 v1.6）
 
 - Fixed the monitor occasionally inserting blank lines for certain receive patterns.
 - Refined the display of components in device connection management.

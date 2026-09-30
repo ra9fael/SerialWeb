@@ -13,7 +13,7 @@ SerialWeb 是一款基于 Web Serial API 的浏览器串口调试与数据绘图
 - **时间线录制** —— 把一次会话录制为原始字节，冻结实时视图，拖动与回放已归档的抓取，
   并以 `.bin` / `.csv` / `.txt` 导出导入。
 
-当前版本：**v1.6**。项目主页：
+当前版本：**v0.2.0**。项目主页：
 <https://conductance-lab.xyz/SerialWeb/> ·
 <https://conductance-lab.github.io/SerialWeb/> ·
 <https://github.com/Conductance-lab/SerialWeb>
@@ -31,7 +31,7 @@ SerialWeb 是一款基于 Web Serial API 的浏览器串口调试与数据绘图
 | [图表参考](charts.md) | 图表类型、通道绑定、缩放与平移、FFT 计算、保留上限 |
 | [数据格式](data-formats.md) | `localStorage` 键、配置快照结构、时间线 BIN/TXT/CSV 布局、解析结果导出 |
 | [开发指南](development.md) | 仓库结构、共享闭包约束、构建脚本、发布 |
-| [更新日志](CHANGELOG.md) | v1.0 – v1.6 版本说明 |
+| [更新日志](CHANGELOG.md) | 各版本更新说明 |
 
 ## 运行要求
 

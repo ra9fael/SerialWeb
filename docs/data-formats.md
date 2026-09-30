@@ -15,7 +15,7 @@ tools.
 | Key | Written by | Purpose |
 | --- | --- | --- |
 | `serialweb:prefs` | The app (debounced 500 ms, flushed on unload) | The whole working configuration — schema below. Read by `bootstrap.js` before first paint to apply theme and layout. |
-| `serialweb:version-modal-seen` | The app | Holds the version string (e.g. `"1.6"`) once the release-notes dialog has been dismissed, so it does not reopen on every load. |
+| `serialweb:version-modal-seen` | The app | Holds the version string of the release whose notes were dismissed, so the dialog does not reopen on every load. |
 | `wsl-layout` | Legacy | Read by nothing; deleted at startup and swept on reset. Older builds used it. |
 
 `Reset config (清空配置)` removes those keys plus **any** key beginning with `serialweb:` or
@@ -28,7 +28,7 @@ falls back to defaults independently, so hand-editing or trimming it is safe.
 
 ```jsonc
 {
-  "appVersion": "1.6",
+  "appVersion": "0.2.0",
   "receiveContentSchemaVersion": 1,
   "savedAt": 1767100000000,          // Date.now(), informational only
   "theme": "system",                 // "system" | "light" | "dark"
@@ -132,7 +132,7 @@ embedded in every timeline export:
 **Paste import (粘贴导入)** requires `type === "SerialWebUserConfig"` **and**
 `version === 1`; anything else is rejected with `剪贴板中未检测到有效的配置。` On success the
 settings are applied immediately, which includes re-opening the serial port if framing
-changed. There is no migration path for future versions — a v2 file will not load in v1.6.
+changed. There is no migration path for future versions — a v2 file will not load in the current release.
 
 ## Timeline files
 

@@ -88,7 +88,7 @@
             <button id="system-menu-btn" class="icon-btn" title="系统菜单">&#9776;</button>
             <div id="system-menu" class="floating-menu">
               <button id="version-info-btn" class="menu-static-line version-info-btn" type="button">
-                <span id="runtime-mode-label" class="runtime-mode-label">关于 v1.6</span>
+                <span id="runtime-mode-label" class="runtime-mode-label">关于</span>
                 <span id="online-mode-chip" class="online-mode-chip">当前在线最新</span>
               </button>
               <div class="menu-theme-line">
@@ -574,7 +574,7 @@
     <section class="version-modal" role="dialog" aria-modal="true" aria-labelledby="version-modal-title">
       <div class="version-modal-head">
         <div>
-          <div id="version-modal-title" class="version-modal-title">SerialWeb 在线版本 v1.6</div>
+          <div id="version-modal-title" class="version-modal-title">SerialWeb</div>
           <div class="version-modal-subtitle">电导实验室串口监视与图形解析工具</div>
         </div>
         <button id="version-modal-close" class="version-modal-close" type="button" aria-label="关闭版本信息">
@@ -587,7 +587,7 @@
       <div class="version-modal-body">
         <div class="version-info-grid">
           <strong>当前版本</strong>
-          <span id="version-current-label">在线版本 v1.6</span>
+          <span id="version-current-label">—</span>
           <strong>工具手册</strong>
           <span><a href="https://docs.conductance-lab.xyz/%E5%B7%A5%E5%85%B7%E6%89%8B%E5%86%8C/SerialWeb%E5%B7%A5%E5%85%B7%E6%89%8B%E5%86%8C" target="_blank" rel="noreferrer">查看工具手册</a></span>
           <strong>问题反馈</strong>
@@ -605,7 +605,17 @@
         <div class="version-changelog">
           <div class="version-changelog-title">更新日志</div>
           <div class="version-release">
-            <strong>v1.6 版本 · 26/9/6</strong>
+            <strong>v0.2.0 版本 · 26/10/1</strong>
+            <ul>
+              <li>新增语言切换：系统菜单 ☰ 中提供 中文 / English / 跟随系统。切换即时生效、无需刷新并会被保存；只有界面会被翻译，已捕获的日志行与终端历史保持写入时的语言。</li>
+              <li>终端字体选择器现在诚实了：未检测到安装的字体族会被置灰并给出提示，而不是像以前那样静默地渲染成与默认等宽字体完全相同的样子。</li>
+              <li>字体与主题改动在终端隐藏时（手动视图或监视器收起）也能可靠生效——改动会被挂起，待终端重新可见时应用。</li>
+              <li>新增终端字号输入框（8–48 px，默认 12），并支持终端内 Ctrl + 鼠标滚轮缩放。两者都会被持久化。</li>
+              <li>清空配置现在同时重置语言与终端字体/字号，并立即重新应用。</li>
+            </ul>
+          </div>
+          <div class="version-release">
+            <strong>v0.1.0 版本 · 26/9/30</strong>
             <ul>
               <li>修复串口接收数据特殊情况下监视器多出空行的问题。</li>
               <li>优化设备连接管理中组件的显示效果。</li>
@@ -638,41 +648,6 @@
               <li>优化通道交互、图框渲染、频域图通道筛选与 name 动态字段跟踪。</li>
               <li>优化时间线回放、配置导入导出的图框状态同步与持久化。</li>
               <li>优化模板解析、发送数据过滤与复选框样式统一。</li>
-            </ul>
-          </div>
-          <div class="version-release">
-            <strong>v1.2 版本 · 26/6/11</strong>
-            <ul>
-              <li>支持定时、触发和预设发送在十六进制模式下保留原始字节，统一发送匹配与显示逻辑。</li>
-              <li>支持高级发送展开区高度拖动调整及各模块拖拽排序。</li>
-              <li>支持预设发送添加备注描述，监视器中显示发送与匹配状态标识。</li>
-              <li>优化十六进制结构解析，支持间隔符占位和帧尾留空的宽匹配逻辑。</li>
-              <li>优化实时解析结果展示，支持横向滚动、展开和折叠。</li>
-              <li>修正连接状态下修改串口参数未立即生效的问题。</li>
-              <li>新增全局配置导入导出与还原，统一保存设备、发送、解析及图框配置。</li>
-            </ul>
-          </div>
-          <div class="version-release">
-            <strong>v1.1 版本 · 26/5/30</strong>
-            <ul>
-              <li>支持设置、输入状态在退出后自动保存，下次加载时恢复使用。</li>
-              <li>支持离线版本的下载和离线版本使用，并支持离线状态识别。</li>
-              <li>优化视觉效果，包括弹窗、下拉状态和窄屏悬浮窗的模糊背景。</li>
-              <li>新增关于弹窗、版本日志、工具手册、GitHub 和问题反馈入口。</li>
-            </ul>
-          </div>
-          <div class="version-release">
-            <strong>v1.0 版本 · 26/5/24</strong>
-            <ul>
-              <li>支持串口监视、设备连接管理、VID/PID 显示、串口参数配置及硬件流控与信号控制。</li>
-              <li>支持深浅主题自动切换及宽屏/窄屏两种布局策略。</li>
-              <li>加入自动重连机制，设备插拔或连接丢失后可尝试恢复。</li>
-              <li>加入失焦自动断连机制，窗口失焦时释放串口，恢复焦点后继续使用。</li>
-              <li>支持图形解析，含文本解析、十六进制结构解析、自动识别规则及实时结果展示。</li>
-              <li>支持时域图与频域图绘制，可绑定解析通道并调整视图范围与量程策略。</li>
-              <li>支持时间线系统，含实时冻结、录制归档、回放、导入导出与解析配置复用。</li>
-              <li>时间线支持导入/导出 BIN/TXT/CSV 原始文件及 TXT/CSV 解析结果。</li>
-              <li>支持手动、定时、触发和预设发送等串口调试工作流。</li>
             </ul>
           </div>
         </div>

@@ -15,7 +15,7 @@ It combines four jobs that normally need separate tools:
 - **Timeline recorder** — record a session to raw bytes, freeze the live view, scrub and
   replay archived captures, and export/import them as `.bin` / `.csv` / `.txt`.
 
-Current version: **v1.6**. Project home:
+Current version: **v0.2.0**. Project home:
 <https://conductance-lab.xyz/SerialWeb/> ·
 <https://conductance-lab.github.io/SerialWeb/> ·
 <https://github.com/Conductance-lab/SerialWeb>
@@ -35,7 +35,7 @@ Current version: **v1.6**. Project home:
 | [Charts reference](charts.md) | Chart types, channel binding, scaling and zoom, FFT math, retention limits |
 | [Data formats](data-formats.md) | `localStorage` keys, config snapshot schema, timeline BIN/TXT/CSV layout, analysis export |
 | [Development](development.md) | Repository layout, the shared-closure constraint, the build script, releasing |
-| [Changelog](CHANGELOG.md) | Release notes for v1.0 – v1.6 |
+| [Changelog](CHANGELOG.md) | Release notes per version |
 
 ## Requirements
 
