@@ -16,7 +16,7 @@ SerialWeb 是一款基于 Web Serial API 的浏览器串口调试与数据绘图
 当前版本：**v0.2.0**。项目主页：
 <https://conductance-lab.xyz/SerialWeb/> ·
 <https://conductance-lab.github.io/SerialWeb/> ·
-<https://github.com/Conductance-lab/SerialWeb>
+<https://github.com/ra9fael/SerialWeb>
 
 > 界面支持中英双语：在 ☰ 系统菜单里选择 **中文 / English / 跟随系统**，首次打开时跟随浏览器语言。
 > 本套中文文档里的界面控件一律按屏幕上的实际文字书写。英文文档与本套中文文档逐文件对应：[../README.md](../README.md)。
@@ -105,4 +105,4 @@ python -m http.server 8000         # -> http://localhost:8000/
 
 - 手册与教程：<https://docs.conductance-lab.xyz/工具手册/SerialWeb工具手册>
 - 问题反馈：<https://docs.qq.com/form/page/DU1B2RWVyZnJERHdq>
-- 源码与 issue：<https://github.com/Conductance-lab/SerialWeb>
+- 源码与 issue：<https://github.com/ra9fael/SerialWeb>

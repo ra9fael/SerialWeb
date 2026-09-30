@@ -18,7 +18,7 @@ It combines four jobs that normally need separate tools:
 Current version: **v0.2.0**. Project home:
 <https://conductance-lab.xyz/SerialWeb/> ·
 <https://conductance-lab.github.io/SerialWeb/> ·
-<https://github.com/Conductance-lab/SerialWeb>
+<https://github.com/ra9fael/SerialWeb>
 
 > The interface is bilingual: choose **中文 / English / 跟随系统 (follow the system)** in the ☰
 > system menu; a first run follows the browser language. Every label in these English docs is
@@ -114,4 +114,4 @@ file, equivalent to `dist/SerialWeb.html`. This is unavailable inside a `file://
 
 - Manual & tutorials: <https://docs.conductance-lab.xyz/工具手册/SerialWeb工具手册>
 - Issue reports: <https://docs.qq.com/form/page/DU1B2RWVyZnJERHdq>
-- Source and issues: <https://github.com/Conductance-lab/SerialWeb>
+- Source and issues: <https://github.com/ra9fael/SerialWeb>

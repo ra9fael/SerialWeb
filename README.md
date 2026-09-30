@@ -63,6 +63,7 @@ how to extend the app safely.
 
 ## Links
 
+- Source and issues: <https://github.com/ra9fael/SerialWeb>
 - Manual & tutorials: <https://docs.conductance-lab.xyz/工具手册/SerialWeb工具手册>
 - Issue reports: <https://docs.qq.com/form/page/DU1B2RWVyZnJERHdq>
 - GitHub Pages mirror: <https://conductance-lab.github.io/SerialWeb/>
