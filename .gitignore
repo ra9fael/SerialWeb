@@ -1,0 +1,14 @@
+# Python virtualenv
+.venv/
+__pycache__/
+
+# Node dependencies
+node_modules/
+
+# Build output (reproducible via build-release.py)
+dist/
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store

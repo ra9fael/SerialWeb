@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SerialWeb | Conductance-lab</title>
+<script src="bootstrap.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="vendor/xterm/xterm.css">
+</head>
+<body spellcheck="false">
+  <script>
+    window.__applySerialWebInitialBodyClasses?.();
+  </script>
+  <div class="app-shell">
+    <header id="app-topbar" class="topbar">
+      <section class="brand-block">
+        <div class="status-pill">
+          <span id="serial-status-dot" class="status-dot warn"></span>
+          <div class="status-pill-copy">
+            <span class="status-pill-title">SerialWeb</span>
+            <span id="serial-status-text" class="status-pill-subtitle" data-hover="展开/折叠连接管理">串口离线</span>
+          </div>
+          <div id="logo-mode-switch" class="logo-mode-switch" aria-label="模式切换">
+            <button id="serial-mode-btn" class="logo-mode-btn is-active" type="button" title="串口监视">
+              <span class="logo-mode-icon" aria-hidden="true">
+                <svg viewBox="0 0 16 16">
+                  <path d="M2.5 3.5h11"></path>
+                  <path d="M2.5 8h7"></path>
+                  <path d="M2.5 12.5h11"></path>
+                  <path d="M11.5 6.2l2 1.8-2 1.8"></path>
+                </svg>
+              </span>
+              <span class="logo-mode-text">监视</span>
+            </button>
+            <button id="parser-mode-btn" class="logo-mode-btn" type="button" title="图形解析">
+              <span class="logo-mode-icon" aria-hidden="true">
+                <svg viewBox="0 0 16 16">
+                  <path d="M2.5 13.5h11"></path>
+                  <path d="M3.5 11l2.2-2.8 2.4 1.9 4-5.1"></path>
+                  <path d="M11.7 5h1.8v1.8"></path>
+                </svg>
+              </span>
+              <span class="logo-mode-text">解析</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="timeline-block">
+        <div class="timeline-controls-wrap">
+          <div id="timeline-ribbon-shell" class="timeline-ribbon-shell">
+            <button id="stop-record-btn" class="record-toggle-btn" title="开始录制">REC</button>
+            <div class="timeline-bar-wrap">
+              <div class="timeline-track-box">
+                <div id="timeline-live-indicator" class="timeline-live-indicator">
+                  <div id="timeline-live-bar" class="timeline-live-bar"></div>
+                </div>
+                <div id="timeline-freeze-hub" class="timeline-freeze-hub" aria-hidden="true">
+                  <button id="timeline-freeze-btn" class="timeline-freeze-btn" type="button" title="冻结实时视图" aria-label="冻结实时视图" aria-pressed="false">
+                    <svg id="timeline-freeze-icon" viewBox="0 0 16 16" aria-hidden="true">
+                      <path d="M6 3.5v9"></path>
+                      <path d="M10 3.5v9"></path>
+                    </svg>
+                  </button>
+                </div>
+                <div id="timeline-history-strip" class="timeline-history-strip hidden">
+                  <div id="timeline-progress" class="timeline-progress"></div>
+                  <input id="timeline-slider" type="range" min="0" max="1000" step="any" value="1000">
+                </div>
+              </div>
+              <div class="timeline-inline-meta">
+                <span id="timeline-label" class="sr-only">实时模式</span>
+                <span id="timeline-stamp">等待串口数据</span>
+              </div>
+            </div>
+            <button id="timeline-picker-btn" class="timeline-picker-btn" title="展开时间线列表">▾</button>
+            <label for="timeline-select" class="sr-only">Timeline</label>
+            <select id="timeline-select" class="hidden"></select>
+            <div id="timeline-picker-panel" class="timeline-picker-panel"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="corner-block">
+        <div class="corner-actions">
+          <div class="menu-anchor">
+            <button id="system-menu-btn" class="icon-btn" title="System Menu">&#9776;</button>
+            <div id="system-menu" class="floating-menu">
+              <button id="version-info-btn" class="menu-static-line version-info-btn" type="button">
+                <span id="runtime-mode-label" class="runtime-mode-label">关于 v1.6</span>
+                <span id="online-mode-chip" class="online-mode-chip">当前在线最新</span>
+              </button>
+              <div class="menu-theme-line">
+                <span class="menu-theme-label">主题：</span>
+                <div id="menu-theme-group" class="menu-theme-group">
+                  <button class="menu-theme-opt is-active" data-theme="system">跟随系统</button>
+                  <button class="menu-theme-opt" data-theme="light">浅色模式</button>
+                  <button class="menu-theme-opt" data-theme="dark">深色模式</button>
+                </div>
+              </div>
+              <div id="config-menu-row" class="menu-config-line">
+                <span class="menu-config-label">配置：</span>
+                <button id="copy-user-config-btn" type="button">复制配置</button>
+                <button id="paste-user-config-btn" type="button">粘贴导入</button>
+                <button id="reset-user-config-btn" type="button">清空配置</button>
+              </div>
+              <div id="config-menu-confirm-row" class="menu-config-line hidden">
+                <span class="menu-config-warning">此操作会丢失当前设置</span>
+                <button id="confirm-user-config-btn" class="danger-btn" type="button">确认</button>
+                <button id="cancel-user-config-btn" type="button">取消</button>
+              </div>
+              <div class="menu-link-row">
+                <a href="https://docs.qq.com/form/page/DU1B2RWVyZnJERHdq" target="_blank" rel="noreferrer">问题反馈</a>
+                <a href="https://docs.conductance-lab.xyz/工具手册/SerialWeb工具手册" target="_blank" rel="noreferrer">工具手册</a>
+              </div>
+              <a id="download-local-link" href="index.html" download="SerialWeb串口调试.html">下载离线版到本地</a>
+              <a href="https://conductance-lab.xyz" target="_blank" rel="noreferrer">电导实验室主页</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </header>
+
+    <div id="mobile-config-backdrop" class="mobile-config-backdrop" aria-hidden="true"></div>
+
+    <main class="workspace">
+      <section class="left-column">
+        <div class="expanded-left-top">
+        <section class="panel config-panel">
+          <div class="panel-head">
+            <div class="config-head-group">
+              <div class="panel-title">设备连接管理</div>
+              <div class="device-meta-stack">
+                <div class="device-meta-line">
+                  <strong>VID</strong>
+                  <span id="device-vid">-</span>
+                </div>
+                <div class="device-meta-line">
+                  <strong>PID</strong>
+                  <span id="device-pid">-</span>
+                </div>
+              </div>
+            </div>
+            <div class="connect-control-box">
+              <div class="button-row">
+                <div class="connect-primary-stack">
+                  <button id="connect-btn" class="primary-btn">连接设备 | 当前未连接</button>
+                  <label class="reconnect-chip" for="auto-reconnect" title="自动重连">
+                    <input id="auto-reconnect" type="checkbox">
+                    <span class="reconnect-dot" aria-hidden="true"></span>
+                    <span class="reconnect-label-text">自动重连</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="config-grid">
+            <div class="field">
+              <label for="baud-rate">波特率</label>
+              <div id="baud-rate-anchor" class="baud-rate-anchor">
+                <div class="baud-rate-combo">
+                  <input id="baud-rate" type="number" min="1" step="1" inputmode="numeric" value="115200">
+                  <button id="baud-rate-preset-btn" type="button" title="选择常用波特率" aria-label="选择常用波特率">▾</button>
+                </div>
+                <div id="baud-rate-preset-menu" class="floating-menu baud-rate-preset-menu">
+                  <button type="button" data-baud-value="1200">1200</button>
+                  <button type="button" data-baud-value="2400">2400</button>
+                  <button type="button" data-baud-value="4800">4800</button>
+                  <button type="button" data-baud-value="9600">9600</button>
+                  <button type="button" data-baud-value="19200">19200</button>
+                  <button type="button" data-baud-value="38400">38400</button>
+                  <button type="button" data-baud-value="57600">57600</button>
+                  <button type="button" data-baud-value="115200">115200</button>
+                  <button type="button" data-baud-value="230400">230400</button>
+                  <button type="button" data-baud-value="460800">460800</button>
+                  <button type="button" data-baud-value="921600">921600</button>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <label for="data-bits">数据位</label>
+              <select id="data-bits">
+                <option value="8">8</option>
+                <option value="7">7</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="stop-bits">停止位</label>
+              <select id="stop-bits">
+                <option value="1">1</option>
+                <option value="2">2</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="parity">校验位</label>
+              <select id="parity">
+                <option value="none">无</option>
+                <option value="even">偶校验</option>
+                <option value="odd">奇校验</option>
+              </select>
+            </div>
+            <div class="field span-4 signal-config-field">
+              <label>自动控制与硬件流控</label>
+              <div class="signal-config-grid">
+                <div class="signal-config-row signal-output-row primary">
+                  <label id="release-on-blur-chip" class="toggle-row signal-chip" for="release-on-blur">
+                    <div>
+                      <div class="mini-label">失焦自动断连</div>
+                    </div>
+                    <input id="release-on-blur" type="checkbox">
+                  </label>
+                  <label id="flow-control-chip" class="toggle-row signal-chip" for="flow-control">
+                    <div>
+                      <div class="mini-label">RTS/CTS 流控</div>
+                    </div>
+                    <input id="flow-control" type="checkbox">
+                  </label>
+                </div>
+                <div class="signal-config-row signal-output-row secondary">
+                  <label id="signal-dtr-chip" class="toggle-row signal-chip" for="signal-dtr">
+                    <div>
+                      <div class="mini-label">DTR</div>
+                    </div>
+                    <input id="signal-dtr" type="checkbox">
+                  </label>
+                  <label id="signal-rts-chip" class="toggle-row signal-chip" for="signal-rts">
+                    <div>
+                      <div class="mini-label">RTS</div>
+                    </div>
+                    <input id="signal-rts" type="checkbox">
+                  </label>
+                  <label id="signal-break-chip" class="toggle-row signal-chip" for="signal-break">
+                    <div>
+                      <div class="mini-label">BREAK</div>
+                    </div>
+                    <input id="signal-break" type="checkbox">
+                  </label>
+                </div>
+                <div class="signal-config-row">
+                  <div id="signal-cts-readout" class="signal-readout">
+                    <strong>CTS</strong>
+                    <span id="signal-cts-value">-</span>
+                  </div>
+                  <div id="signal-dsr-readout" class="signal-readout">
+                    <strong>DSR</strong>
+                    <span id="signal-dsr-value">-</span>
+                  </div>
+                  <div id="signal-dcd-readout" class="signal-readout">
+                    <strong>DCD</strong>
+                    <span id="signal-dcd-value">-</span>
+                  </div>
+                  <div id="signal-ri-readout" class="signal-readout">
+                    <strong>RI</strong>
+                    <span id="signal-ri-value">-</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="advanced-panel" class="advanced-grid">
+            <div class="field">
+              <label for="text-encoding">字符编码</label>
+              <select id="text-encoding">
+                <option value="utf-8">UTF-8</option>
+                <option value="ascii">ASCII</option>
+                <option value="latin1">Latin-1</option>
+                <option value="utf-16le">UTF-16LE</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="newline-mode">换行符设置</label>
+              <select id="newline-mode">
+                <option value="r">\r</option>
+                <option value="n">\n</option>
+                <option value="rn">\r\n</option>
+              </select>
+            </div>
+            <label class="toggle-row">
+              <div>
+                <div class="mini-label">十六进制接收</div>
+              </div>
+              <input id="rx-display-mode" type="checkbox">
+            </label>
+            <label class="toggle-row">
+              <div>
+                <div class="mini-label">十六进制发送</div>
+              </div>
+              <input id="send-mode" type="checkbox">
+            </label>
+            <label class="toggle-row">
+              <div>
+                <div class="mini-label">显示时间</div>
+              </div>
+              <input id="append-timestamp" type="checkbox" checked>
+            </label>
+            <label class="toggle-row">
+              <div>
+                <div class="mini-label">结尾补换行符</div>
+              </div>
+              <input id="append-newline" type="checkbox" checked>
+            </label>
+          </div>
+
+          <div class="layout-toggle-strip">
+            <button id="layout-toggle-btn" class="layout-toggle-btn" title="图形解析模式">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9l6 6 6-6"></path>
+              </svg>
+              <span id="layout-toggle-label">图形解析模式</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel parser-panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">解析协议设置</div>
+            </div>
+            <div class="mode-tabs mode-switch-group parser-mode-switch">
+              <button class="mode-tab active" data-parser-mode="text">文本解析</button>
+              <button class="mode-tab" data-parser-mode="binary">十六进制解析</button>
+            </div>
+          </div>
+
+          <section id="text-parser-pane" class="parser-config-card">
+            <div class="parser-card-head">
+              <div class="panel-title">文本解析配置
+                <span class="help-icon" data-tip="如何编写解析规则：&#10;&#10;三种标记（必须 / 开头 + 数字序号）：&#10;/nameN → 匹配文本，用作键名&#10;/intN  → 匹配整数&#10;/floatN → 匹配小数&#10;&#10;标记之间可放任意分隔符&#10;分隔符按原样匹配输入数据&#10;&#10;例 1：/name0=/int0 /name1=/float1&#10;可解析：温度=42 湿度=3.14&#10;结果→ 温度:42, 湿度:3.14&#10;&#10;例 2：/name0:/int0,/name1=/float1&#10;可解析：温度:42,湿度=3.14&#10;&#10;例 3（动态键名）：/name0=/int0&#10;同一规则可解析不同输入：&#10; 传感器A=25 → 传感器A:25&#10; 传感器B=30 → 传感器B:30&#10;name 会自动将捕获的文本&#10;作为该条数据的键名">?</span>
+              </div>
+              <button id="apply-recommended-rule-btn" class="auto-detect-btn" type="button">自动识别：不可用</button>
+            </div>
+            <div class="field">
+              <label for="text-parse-rule">配置文本</label>
+              <div class="text-rule-field-row">
+                <div id="text-rule-editor" class="text-rule-editor">
+                  <div id="text-rule-overlay" class="text-rule-overlay" aria-hidden="true"></div>
+                  <textarea id="text-parse-rule" placeholder="/name0=/float0,/name1=/int0;" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="binary-parser-pane" class="parser-config-card hidden">
+            <div class="parser-card-head">
+              <div>
+                <div class="panel-title">十六进制结构表
+                  <span class="help-icon" data-tip="行类型（按表格下拉顺序）：&#10;• 帧头 — 帧起始标识，16进制&#10;  留空则跳过&#10;• 帧尾 — 帧结束标识，16进制&#10;  留空则不检查帧尾&#10;• 数据 — 数值数据，需选择&#10;  数据类型 + 填写标签名&#10;• 校验和 — 自动计算 SUM8&#10;  仅覆盖 data 行的字节&#10;• 间隔符 — 留空占位 1 字节&#10;  填入则匹配指定16进制&#10;&#10;数值大小端说明：&#10;LE = Little Endian（低位在前）&#10;BE = Big Endian（高位在前）&#10;&#10;可用数据类型：&#10;UInt8 / Int8&#10;UInt16 LE/BE / Int16 LE/BE&#10;UInt32 LE/BE / Int32 LE/BE&#10;Float32 LE/BE / Bool(8bit)">?</span>
+                </div>
+              </div>
+              <button id="add-binary-row-btn" class="secondary-btn">新增一行</button>
+            </div>
+            <div class="binary-schema-table">
+              <div class="binary-schema-head">
+                <span>段类型</span>
+                <span>数值 / 数据类型</span>
+                <span>标签</span>
+                <span></span>
+              </div>
+              <div id="binary-schema-list" class="binary-schema-list"></div>
+            </div>
+          </section>
+
+          <section class="parser-results-card">
+            <div class="parser-results-head">
+              <div class="panel-title parser-results-title">实时解析结果 <span class="panel-title-note">可录制时间线导出解析结果</span></div>
+              <button id="toggle-parser-results-btn" class="secondary-btn parser-results-toggle" type="button" aria-expanded="false">展开</button>
+            </div>
+            <div id="parser-preview" class="parser-result-grid"></div>
+          </section>
+        </section>
+        </div>
+
+        <section class="charts-panel">
+          <div class="chart-add-strip">
+            <div class="chart-add-copy">
+              <div class="panel-title">添加图框</div>
+            </div>
+            <div class="button-row">
+              <button id="add-time-chart-btn" class="secondary-btn">时域图</button>
+              <button id="add-fft-chart-btn" class="secondary-btn">频域图</button>
+              <button id="add-bar-chart-btn" class="secondary-btn">柱状图</button>
+              <button id="clear-charts-btn" class="secondary-btn danger-btn" type="button">清空缓存</button>
+            </div>
+          </div>
+          <div id="chart-list" class="chart-list"></div>
+        </section>
+      </section>
+
+      <section class="right-column">
+        <section class="panel monitor-panel">
+          <div class="monitor-toolbar">
+            <div class="monitor-toolbar-copy">
+              <div class="panel-title">串口监视器</div>
+              <div id="monitor-live-meta" class="device-meta-stack monitor-live-meta">
+                <div class="device-meta-line" data-meta="mode">
+                  <strong>模式</strong>
+                  <span id="monitor-meta-mode">-</span>
+                </div>
+                <div class="device-meta-line" data-meta="tx">
+                  <strong>TX</strong>
+                  <span id="monitor-meta-tx">-</span>
+                </div>
+                <div class="device-meta-line" data-meta="rx">
+                  <strong>RX</strong>
+                  <span id="monitor-meta-rx">-</span>
+                </div>
+              </div>
+            </div>
+            <div id="monitor-view-switch" class="mode-tabs mode-switch-group monitor-view-switch" role="tablist" aria-label="监视视图切换">
+              <button class="mode-tab active" data-monitor-view="manual" type="button">手动收发</button>
+              <button class="mode-tab" data-monitor-view="terminal" type="button">终端</button>
+            </div>
+            <div id="term-toolbar-controls" class="term-toolbar-controls">
+              <label class="term-field" title="发送时追加的行结束符">
+                <span>换行</span>
+                <select id="term-newline">
+                  <option value="n" selected>\n</option>
+                  <option value="rn">\r\n</option>
+                  <option value="r">\r</option>
+                  <option value="none">无</option>
+                </select>
+              </label>
+              <label class="term-field" title="终端字体（可选 Nerd Font 等已安装字体）">
+                <span>字体</span>
+                <select id="term-font">
+                  <option value="">默认</option>
+                  <option value="&quot;Cascadia Code&quot;, monospace">Cascadia Code</option>
+                  <option value="&quot;Cascadia Mono&quot;, monospace">Cascadia Mono</option>
+                  <option value="&quot;JetBrainsMono Nerd Font&quot;, &quot;JetBrains Mono&quot;, monospace">JetBrains Mono</option>
+                  <option value="&quot;FiraCode Nerd Font&quot;, &quot;Fira Code&quot;, monospace">FiraCode</option>
+                  <option value="&quot;Hack Nerd Font&quot;, Hack, monospace">Hack</option>
+                  <option value="&quot;MesloLGS NF&quot;, monospace">MesloLGS NF</option>
+                  <option value="&quot;Sarasa Mono SC&quot;, monospace">更纱黑体</option>
+                  <option value="&quot;Noto Sans Mono CJK SC&quot;, monospace">Noto Mono CJK</option>
+                  <option value="Consolas, monospace">Consolas</option>
+                  <option value="&quot;Courier New&quot;, monospace">Courier New</option>
+                </select>
+              </label>
+              <label class="term-field" title="终端配色主题">
+                <span>主题</span>
+                <select id="term-skin">
+                  <option value="">跟随应用</option>
+                  <option value="green">黑底绿字</option>
+                  <option value="black-white">黑底白字</option>
+                  <option value="dracula">Dracula</option>
+                  <option value="solarized-dark">Solarized Dark</option>
+                  <option value="solarized-light">Solarized Light</option>
+                  <option value="one-dark">One Dark</option>
+                </select>
+              </label>
+              <label class="term-field term-echo" title="本地回显键入内容（仅适用于不回显的设备；shell 等设备会自行回显，保持关闭）">
+                <input id="term-local-echo" type="checkbox">
+                <span>回显</span>
+              </label>
+            </div>
+            <div class="button-row">
+              <button id="clear-live-log-btn" class="secondary-btn">清空缓存</button>
+            </div>
+          </div>
+          <div class="monitor-body">
+            <div class="terminal-wrap">
+              <div id="terminal" class="terminal"></div>
+              <button id="terminal-jump-btn" class="terminal-jump-btn" type="button" title="到底部" aria-label="滚动到底部">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 5v12"></path>
+                  <path d="M7 12l5 5 5-5"></path>
+                </svg>
+              </button>
+            </div>
+
+            <section id="send-panel" class="send-panel">
+              <div id="send-resize-handle" class="send-resize-handle" role="separator" aria-orientation="horizontal" aria-label="调整串口监视器与发送功能区域高度"></div>
+              <div id="send-extension-shell" class="send-extension-shell">
+                <div id="extension-panel" class="send-mode-stack">
+                  <section id="auto-send-module" class="module-card hidden">
+                    <div class="module-head">
+                      <button id="auto-send-switch" class="module-switch" type="button" aria-label="启用定时发送" aria-pressed="false"></button>
+                      <div class="module-copy">
+                        <div class="panel-title">定时发送</div>
+                        <div class="panel-subtitle">循环列表按周期自动发送</div>
+                      </div>
+                      <div class="module-head-inline">
+                        <div class="field-inline">
+                          <label for="auto-send-interval">间隔时间</label>
+                          <input id="auto-send-interval" class="compact-input" type="number" min="100" step="100" value="1000">
+                        </div>
+                        <button id="add-auto-item-btn" class="secondary-btn module-head-action">新增轮询项</button>
+                      </div>
+                    </div>
+                    <div class="module-body">
+                      <div id="auto-send-queue" class="queue-table"></div>
+                    </div>
+                  </section>
+
+                  <section id="condition-send-module" class="module-card hidden">
+                    <div class="module-head">
+                      <button id="condition-send-switch" class="module-switch" type="button" aria-label="启用触发发送" aria-pressed="false"></button>
+                      <div class="module-copy">
+                        <div class="panel-title">触发发送</div>
+                        <div class="panel-subtitle">命中规则后自动应答</div>
+                      </div>
+                      <button id="add-condition-rule-btn" class="secondary-btn module-head-action">新增触发规则</button>
+                    </div>
+                    <div class="module-body">
+                      <div id="condition-rule-list" class="rule-table"></div>
+                    </div>
+                  </section>
+
+                  <section id="preset-send-module" class="module-card hidden">
+                    <div class="module-head">
+                      <button id="preset-send-switch" class="module-switch" type="button" aria-label="展开预设发送" aria-pressed="false"></button>
+                      <div class="module-copy">
+                        <div class="panel-title">预设发送</div>
+                        <div class="panel-subtitle">发送内容并等待期望接收，开关控制全局快捷键</div>
+                      </div>
+                      <button id="add-preset-item-btn" class="secondary-btn module-head-action">新增预设项</button>
+                    </div>
+                    <div class="module-body">
+                      <div id="preset-send-list" class="queue-table"></div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+
+              <div id="send-manual-panel" class="send-manual-panel">
+                <div class="send-main">
+                  <textarea id="send-input" placeholder="输入发送内容；HEX 模式示例：AA 55 01 02"></textarea>
+                  <button id="send-now-btn" class="wide-send-btn">立即发送</button>
+                </div>
+              </div>
+
+              <div class="send-modebar">
+                <div id="auto-send-tile" class="send-mode-tile">
+                  <button id="toggle-auto-send-enable-btn" class="mode-enable-dot" type="button" aria-label="启用定时发送" aria-pressed="false"></button>
+                  <button id="toggle-auto-send-btn" class="send-mode-switch" type="button" aria-expanded="false"><span data-short="定时">定时发送</span></button>
+                </div>
+                <div id="condition-send-tile" class="send-mode-tile">
+                  <button id="toggle-condition-send-enable-btn" class="mode-enable-dot" type="button" aria-label="启用触发发送" aria-pressed="false"></button>
+                  <button id="toggle-condition-send-btn" class="send-mode-switch" type="button" aria-expanded="false"><span data-short="触发">触发发送</span></button>
+                </div>
+                <div id="preset-send-tile" class="send-mode-tile">
+                  <button id="toggle-preset-send-enable-btn" class="mode-enable-dot" type="button" aria-label="展开预设发送" aria-pressed="false"></button>
+                  <button id="toggle-preset-send-btn" class="send-mode-switch" type="button" aria-expanded="false"><span data-short="预设">预设发送</span></button>
+                </div>
+              </div>
+            </section>
+
+            <section id="term-interaction" class="term-interaction" aria-label="终端交互模式">
+              <div id="term-output" class="term-output" aria-label="串口终端，直接键入内容，回车发送"></div>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <input id="timeline-file-input" type="file" class="hidden" accept=".csv,.txt,.bin,.timeline">
+  <div id="version-modal-backdrop" class="version-modal-backdrop" aria-hidden="true">
+    <section class="version-modal" role="dialog" aria-modal="true" aria-labelledby="version-modal-title">
+      <div class="version-modal-head">
+        <div>
+          <div id="version-modal-title" class="version-modal-title">SerialWeb 在线版本 v1.6</div>
+          <div class="version-modal-subtitle">电导实验室串口监视与图形解析工具</div>
+        </div>
+        <button id="version-modal-close" class="version-modal-close" type="button" aria-label="关闭版本信息">
+          <svg class="version-modal-close-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+            <circle class="version-modal-close-ring" cx="16" cy="16" r="15.5"></circle>
+            <path class="version-modal-close-mark" d="M11.5 11.5L20.5 20.5M20.5 11.5L11.5 20.5"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="version-modal-body">
+        <div class="version-info-grid">
+          <strong>当前版本</strong>
+          <span id="version-current-label">在线版本 v1.6</span>
+          <strong>工具手册</strong>
+          <span><a href="https://docs.conductance-lab.xyz/%E5%B7%A5%E5%85%B7%E6%89%8B%E5%86%8C/SerialWeb%E5%B7%A5%E5%85%B7%E6%89%8B%E5%86%8C" target="_blank" rel="noreferrer">查看工具手册</a></span>
+          <strong>问题反馈</strong>
+          <span><a href="https://docs.qq.com/form/page/DU1B2RWVyZnJERHdq" target="_blank" rel="noreferrer">提交问题反馈</a></span>
+          <strong>GitHub</strong>
+          <span><a href="https://github.com/Conductance-lab/SerialWeb" target="_blank" rel="noreferrer">查看 github 项目</a></span>
+        </div>
+        <div id="version-online-box" class="version-online-box">
+          <strong>最新在线版本</strong>
+          <span>国内访问</span>
+          <a href="https://conductance-lab.xyz/SerialWeb/" target="_blank" rel="noreferrer">https://conductance-lab.xyz/SerialWeb/</a>
+          <span>GitHub Page</span>
+          <a href="https://conductance-lab.github.io/SerialWeb/" target="_blank" rel="noreferrer">https://conductance-lab.github.io/SerialWeb/</a>
+        </div>
+        <div class="version-changelog">
+          <div class="version-changelog-title">更新日志</div>
+          <div class="version-release">
+            <strong>v1.6 版本 · 26/9/6</strong>
+            <ul>
+              <li>修复串口接收数据特殊情况下监视器多出空行的问题。</li>
+              <li>优化设备连接管理中组件的显示效果。</li>
+              <li>优化图框的部分显示效果和操作逻辑。</li>
+            </ul>
+          </div>
+          <div class="version-release">
+            <strong>v1.5 版本 · 26/7/9</strong>
+            <ul>
+              <li>"自动硬件流控"更名为"RTS/CTS 流控"，名称更准确。</li>
+              <li>重构 TX/RX 收发与换行符显示逻辑，优化监视器渲染与事件处理。</li>
+            </ul>
+          </div>
+          <div class="version-release">
+            <strong>v1.4 版本 · 26/7/4</strong>
+            <ul>
+              <li>优化页面配色与扁平化设计，浅色/深色模式分离。</li>
+              <li>优化预设发送交互逻辑，通过开关控制全局快捷键的预设发送。</li>
+              <li>新增解析配置帮助提示，支持悬浮查看规则说明。</li>
+            </ul>
+          </div>
+          <div class="version-release">
+            <strong>v1.3 版本 · 26/6/30</strong>
+            <ul>
+              <li>新增柱状图，支持通道选择、纵轴缩放与自动量程。</li>
+              <li>name 标签匹配逻辑改为后缀数字匹配（name0↔int0），规则格式更灵活。</li>
+              <li>预设发送支持单字符快捷键，按下即发；自动全选，替换即生效。</li>
+              <li>修复 GitHub 历史版本仓库，优化离线版本使用体验。</li>
+              <li>优化紧凑显示模式、布局间距与各面板一致性。</li>
+              <li>优化通道交互、图框渲染、频域图通道筛选与 name 动态字段跟踪。</li>
+              <li>优化时间线回放、配置导入导出的图框状态同步与持久化。</li>
+              <li>优化模板解析、发送数据过滤与复选框样式统一。</li>
+            </ul>
+          </div>
+          <div class="version-release">
+            <strong>v1.2 版本 · 26/6/11</strong>
+            <ul>
+              <li>支持定时、触发和预设发送在十六进制模式下保留原始字节，统一发送匹配与显示逻辑。</li>
+              <li>支持高级发送展开区高度拖动调整及各模块拖拽排序。</li>
+              <li>支持预设发送添加备注描述，监视器中显示发送与匹配状态标识。</li>
+              <li>优化十六进制结构解析，支持间隔符占位和帧尾留空的宽匹配逻辑。</li>
+              <li>优化实时解析结果展示，支持横向滚动、展开和折叠。</li>
+              <li>修正连接状态下修改串口参数未立即生效的问题。</li>
+              <li>新增全局配置导入导出与还原，统一保存设备、发送、解析及图框配置。</li>
+            </ul>
+          </div>
+          <div class="version-release">
+            <strong>v1.1 版本 · 26/5/30</strong>
+            <ul>
+              <li>支持设置、输入状态在退出后自动保存，下次加载时恢复使用。</li>
+              <li>支持离线版本的下载和离线版本使用，并支持离线状态识别。</li>
+              <li>优化视觉效果，包括弹窗、下拉状态和窄屏悬浮窗的模糊背景。</li>
+              <li>新增关于弹窗、版本日志、工具手册、GitHub 和问题反馈入口。</li>
+            </ul>
+          </div>
+          <div class="version-release">
+            <strong>v1.0 版本 · 26/5/24</strong>
+            <ul>
+              <li>支持串口监视、设备连接管理、VID/PID 显示、串口参数配置及硬件流控与信号控制。</li>
+              <li>支持深浅主题自动切换及宽屏/窄屏两种布局策略。</li>
+              <li>加入自动重连机制，设备插拔或连接丢失后可尝试恢复。</li>
+              <li>加入失焦自动断连机制，窗口失焦时释放串口，恢复焦点后继续使用。</li>
+              <li>支持图形解析，含文本解析、十六进制结构解析、自动识别规则及实时结果展示。</li>
+              <li>支持时域图与频域图绘制，可绑定解析通道并调整视图范围与量程策略。</li>
+              <li>支持时间线系统，含实时冻结、录制归档、回放、导入导出与解析配置复用。</li>
+              <li>时间线支持导入/导出 BIN/TXT/CSV 原始文件及 TXT/CSV 解析结果。</li>
+              <li>支持手动、定时、触发和预设发送等串口调试工作流。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div id="toast-layer" class="toast-layer"></div>
+
+  <script src="vendor/xterm/xterm.js"></script>
+<script src="vendor/xterm/xterm-addon-fit.js"></script>
+<script src="app.loader.js"></script>
+</body>
+</html>
+

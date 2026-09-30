@@ -1,0 +1,302 @@
+'use strict';
+/* ============================================================================
+ * SerialWeb - terminal mode (part 2 of 3)
+ * xterm.js based terminal interaction mode: raw byte passthrough, optional
+ * local echo/line editing, skins, fonts and view switching. Continues the
+ * IIFE opened in app.core.js.
+ * ==========================================================================*/
+  function isTerminalViewActive() {
+    return state.ui.monitorView === 'terminal';
+  }
+
+  const TERMINAL_SKINS = {
+    green: {
+      background: '#0b0f0b',
+      foreground: '#33ff66',
+      cursor: '#33ff66',
+      cursorAccent: '#0b0f0b',
+      selectionBackground: 'rgba(51, 255, 102, 0.28)'
+    },
+    'black-white': {
+      background: '#000000',
+      foreground: '#e8e8ea',
+      cursor: '#e8e8ea',
+      cursorAccent: '#000000',
+      selectionBackground: 'rgba(232, 232, 234, 0.28)'
+    },
+    dracula: {
+      background: '#282a36',
+      foreground: '#f8f8f2',
+      cursor: '#f8f8f2',
+      cursorAccent: '#282a36',
+      selectionBackground: '#44475a'
+    },
+    'solarized-dark': {
+      background: '#002b36',
+      foreground: '#839496',
+      cursor: '#93a1a1',
+      cursorAccent: '#002b36',
+      selectionBackground: '#073642'
+    },
+    'solarized-light': {
+      background: '#fdf6e3',
+      foreground: '#657b83',
+      cursor: '#586e75',
+      cursorAccent: '#fdf6e3',
+      selectionBackground: '#eee8d5'
+    },
+    'one-dark': {
+      background: '#282c34',
+      foreground: '#abb2bf',
+      cursor: '#528bff',
+      cursorAccent: '#282c34',
+      selectionBackground: '#3e4451'
+    }
+  };
+
+  function getTerminalTheme() {
+    const skin = TERMINAL_SKINS[refs.termSkin?.value || ''];
+    if (skin) {
+      return { ...skin };
+    }
+    const style = getComputedStyle(document.body);
+    const read = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
+    return {
+      background: read('--bg-terminal', '#101216'),
+      foreground: read('--text', '#e8e8ea'),
+      cursor: read('--accent-strong', '#e8e8ea'),
+      cursorAccent: read('--bg-terminal', '#101216'),
+      selectionBackground: read('--accent-soft', 'rgba(100, 108, 255, 0.30)')
+    };
+  }
+
+  function updateTerminalTheme() {
+    const theme = getTerminalTheme();
+    if (refs.termOutput) {
+      refs.termOutput.style.background = theme.background;
+    }
+    if (terminalRuntime.term) {
+      terminalRuntime.term.options.theme = theme;
+    }
+  }
+
+  function getTerminalFontFamily() {
+    const value = refs.termFont?.value || '';
+    if (value) return value;
+    return getComputedStyle(document.body).getPropertyValue('--font-mono').trim() || 'Consolas, monospace';
+  }
+
+  function updateTerminalFont() {
+    const term = terminalRuntime.term;
+    if (!term) return;
+    term.options.fontFamily = getTerminalFontFamily();
+    refitTerminal();
+  }
+
+  function ensureTerminalInstance() {
+    if (terminalRuntime.term || typeof Terminal === 'undefined' || typeof FitAddon === 'undefined') {
+      return terminalRuntime.term;
+    }
+    const host = refs.termOutput;
+    if (!host) return null;
+    const term = new Terminal({
+      fontFamily: getTerminalFontFamily(),
+      fontSize: 12,
+      lineHeight: 1.25,
+      cursorBlink: true,
+      cursorStyle: 'block',
+      scrollback: 5000,
+      convertEol: false,
+      theme: getTerminalTheme()
+    });
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(host);
+    term.onData(handleTermData);
+    try {
+      fitAddon.fit();
+    } catch (error) {}
+    terminalRuntime.term = term;
+    terminalRuntime.fitAddon = fitAddon;
+    if (typeof ResizeObserver !== 'undefined') {
+      terminalRuntime.resizeObserver = new ResizeObserver(() => refitTerminal());
+      terminalRuntime.resizeObserver.observe(host);
+    }
+    return term;
+  }
+
+  function refitTerminal() {
+    const { term, fitAddon } = terminalRuntime;
+    if (!term || !fitAddon || !isTerminalViewActive()) return;
+    try {
+      fitAddon.fit();
+    } catch (error) {}
+  }
+
+  function termEchoText(text) {
+    if (!text || !refs.termLocalEcho?.checked) return;
+    terminalRuntime.term?.write(text);
+  }
+
+  function appendTermRx(text) {
+    const term = terminalRuntime.term;
+    if (!term || !text) return;
+    // Normalize a bare \n to \r\n for xterm; keep a lone \r (devices may use it for in-place redraws)
+    term.write(String(text).replace(/\r?\n/g, '\r\n'));
+    termEchoText(terminalSession.buffer);
+  }
+
+  function getTermLineEnding() {
+    const mode = refs.termNewline?.value || 'rn';
+    return mode === 'none' ? '' : mode === 'r' ? '\r' : mode === 'n' ? '\n' : '\r\n';
+  }
+
+  function clearTerminalOutput() {
+    const term = terminalRuntime.term;
+    if (!term) return;
+    term.clear();
+    term.write('\x1b[2K');
+  }
+
+  function handleTermData(data) {
+    if (!data) return;
+    if (!refs.termLocalEcho?.checked) {
+      // Passthrough mode: forward raw keystrokes to the device like a real terminal (Enter mapped to the selected line ending)
+      const payload = data === '\r'
+        ? (getTermLineEnding() || '\r')
+        : data;
+      sendTerminalBytes(payload);
+      return;
+    }
+    // Local echo / line-editing mode (for devices that do not echo themselves)
+    if (data === '\r') {
+      commitTerminalLine();
+      return;
+    }
+    if (data === '\x7f') {
+      if (terminalSession.buffer.length) {
+        terminalSession.buffer = terminalSession.buffer.slice(0, -1);
+        termEchoText('\b \b');
+      }
+      return;
+    }
+    if (data === '\x15') {
+      terminalSession.buffer = '';
+      termEchoText('\r\x1b[2K');
+      return;
+    }
+    if (data === '\x1b[A') {
+      navigateTermHistory('up');
+      return;
+    }
+    if (data === '\x1b[B') {
+      navigateTermHistory('down');
+      return;
+    }
+    if (data.length === 1 && data.charCodeAt(0) < 32 && data !== '\t') {
+      // Other control keys (Ctrl+C etc.) are sent raw, with a local ^X marker displayed
+      const label = `^${String.fromCharCode(data.charCodeAt(0) + 64)}`;
+      sendTerminalBytes(data);
+      terminalSession.buffer = '';
+      termEchoText(`${label}\r\n`);
+      return;
+    }
+    if (data.startsWith('\x1b')) {
+      sendTerminalBytes(data);
+      return;
+    }
+    terminalSession.buffer += data;
+    termEchoText(String(data).replace(/\r\n|\r|\n/g, '\r\n'));
+  }
+
+  function sendTerminalBytes(data) {
+    if (!data) return Promise.resolve(false);
+    let bytes;
+    try {
+      bytes = encodeText(data, state.settings.textEncoding);
+    } catch (error) {
+      bytes = new TextEncoder().encode(data);
+    }
+    return performSerialWrite(bytes).then((sent) => {
+      if (sent) {
+        state.session.txBytes += bytes.length;
+        renderStats();
+      } else {
+        toast('发送失败', '串口未连接，无法发送终端输入。', 'warn', [], { key: 'term-send' });
+      }
+      return sent;
+    });
+  }
+
+  async function commitTerminalLine() {
+    const text = terminalSession.buffer;
+    const ending = getTermLineEnding();
+    terminalSession.buffer = '';
+    terminalSession.historyIndex = -1;
+    terminalSession.draft = '';
+    if (text) {
+      terminalSession.history.push(text);
+      if (terminalSession.history.length > TERMINAL_HISTORY_MAX) terminalSession.history.shift();
+    }
+    if (refs.termLocalEcho?.checked) {
+      terminalRuntime.term?.write('\r\n');
+    }
+    const payload = text + ending;
+    if (!payload) return;
+    await sendTerminalBytes(payload);
+  }
+
+  function navigateTermHistory(direction) {
+    const term = terminalRuntime.term;
+    if (!term || !terminalSession.history.length) return;
+    const redraw = (value) => {
+      terminalSession.buffer = value;
+      termEchoText(`\r\x1b[2K${value}`);
+    };
+    if (direction === 'up') {
+      if (terminalSession.historyIndex === -1) {
+        terminalSession.draft = terminalSession.buffer;
+        terminalSession.historyIndex = terminalSession.history.length - 1;
+      } else if (terminalSession.historyIndex > 0) {
+        terminalSession.historyIndex -= 1;
+      }
+    } else {
+      if (terminalSession.historyIndex === -1) return;
+      if (terminalSession.historyIndex < terminalSession.history.length - 1) {
+        terminalSession.historyIndex += 1;
+      } else {
+        terminalSession.historyIndex = -1;
+        redraw(terminalSession.draft || '');
+        return;
+      }
+    }
+    redraw(terminalSession.history[terminalSession.historyIndex] || '');
+  }
+
+  function applyMonitorView() {
+    const terminal = isTerminalViewActive();
+    refs.monitorPanel?.classList.toggle('view-terminal', terminal);
+    refs.monitorViewSwitch?.classList.toggle('term-active', terminal);
+    refs.monitorViewTabs?.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.monitorView === state.ui.monitorView);
+    });
+    if (terminal) {
+      const term = ensureTerminalInstance();
+      if (term && !terminalSession.hintShown) {
+        terminalSession.hintShown = true;
+        term.writeln(TERMINAL_READY_HINT);
+      }
+      requestAnimationFrame(() => {
+        refitTerminal();
+        term?.focus();
+      });
+    }
+  }
+
+  function setMonitorView(view) {
+    const next = view === 'terminal' ? 'terminal' : 'manual';
+    if (state.ui.monitorView === next) return;
+    state.ui.monitorView = next;
+    applyMonitorView();
+    scheduleLocalPrefsSave();
+  }

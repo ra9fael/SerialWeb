@@ -1,0 +1,2095 @@
+'use strict';
+/* ============================================================================
+ * SerialWeb - app core (part 1 of 3)
+ * Opens the application IIFE. Contains constants, application state, DOM
+ * references and shared utility helpers. The IIFE closure continues in
+ * app.terminal.js and is closed by app.main.js - load order matters:
+ *   bootstrap.js -> vendor/xterm/* -> app.core.js -> app.terminal.js -> app.main.js
+ * ==========================================================================*/
+(() => {
+  const VERSION = '1.6';
+  const ONLINE_VERSION_URL = 'https://conductance-lab.xyz/SerialWeb/';
+  const VERSION_MODAL_SEEN_KEY = 'serialweb:version-modal-seen';
+  const MAX_DERIVED_LOG_LINES = 320;
+  const SERIAL_BUFFER_SIZE = 65536;
+  const PRESET_EXPECTATION_TIMEOUT_MS = 1800;
+  const PLAYER_STEP_MS = 250;
+  const PLAYER_FAST_STEP_MS = 1000;
+  const HIGH_RES_TIME_EPOCH_MS = (typeof performance !== 'undefined' && Number.isFinite(performance.timeOrigin))
+    ? performance.timeOrigin
+    : (Date.now() - (typeof performance !== 'undefined' ? performance.now() : 0));
+  const MAX_CHART_HISTORY_MS = 60000;
+  const MAX_TIME_CHART_HISTORY_MS = 30000;
+  const MAX_CHART_POINTS = 180000;
+  const MAX_CHART_RENDER_POINTS = 6000;
+  const MAX_LIVE_EVENT_TOTAL_CHARS = 8192;
+  const MAX_RX_OPEN_EVENT_BYTES = 2048;
+  const MAX_RX_OPEN_EVENT_TEXT_CHARS = 2048;
+  const LOCAL_PREFS_KEY = 'serialweb:prefs';
+  const LOCAL_PREFS_DEBOUNCE_MS = 500;
+  const RECEIVE_CONTENT_SCHEMA_VERSION = 1;
+  const SERIAL_RECONFIGURE_DEBOUNCE_MS = 420;
+  const SEND_EXTENSION_DEFAULT_HEIGHT = 252;
+  const SEND_EXTENSION_MIN_HEIGHT = 120;
+  const SEND_MONITOR_MIN_HEIGHT = 150;
+  const DOWNLOAD_HTML_FILENAME = 'SerialWeb串口调试.html';
+  const CHART_ZOOM_MIN = 0.02;
+  const CHART_ZOOM_MAX = 240;
+  const MODE_PULSE_MS = 500;
+  const CHART_COLORS = ['#1d7af2', '#0e9f6e', '#d97706', '#c2410c', '#8b5cf6', '#ef4444', '#14b8a6'];
+  const TIMELINE_BIN_MAGIC = new Uint8Array([0x57, 0x53, 0x4c, 0x42, 0x49, 0x4e, 0x31, 0x00]);
+  const appEl = document.body;
+
+  const terminalSession = {
+    buffer: '',
+    history: [],
+    historyIndex: -1,
+    draft: '',
+    hintShown: false
+  };
+  const terminalRuntime = {
+    term: null,
+    fitAddon: null,
+    resizeObserver: null
+  };
+  const TERMINAL_HISTORY_MAX = 200;
+  const TERMINAL_READY_HINT = '\x1b[2m—— 串口终端已就绪：直接键入即发送（Ctrl+C/Ctrl+D/方向键等原样透传给设备）；如设备不回显，请打开“回显” ——\x1b[0m';
+
+  const refs = {
+    topbar: document.getElementById('app-topbar'),
+    serialModeBtn: document.getElementById('serial-mode-btn'),
+    parserModeBtn: document.getElementById('parser-mode-btn'),
+    statusPill: document.querySelector('.status-pill'),
+    logoModeSwitch: document.getElementById('logo-mode-switch'),
+    serialStatusDot: document.getElementById('serial-status-dot'),
+    serialStatusText: document.getElementById('serial-status-text'),
+    themeGroup: document.getElementById('menu-theme-group'),
+    themeOpts: document.querySelectorAll('#menu-theme-group .menu-theme-opt'),
+    timelineSelect: document.getElementById('timeline-select'),
+    stopRecordBtn: document.getElementById('stop-record-btn'),
+    timelinePickerBtn: document.getElementById('timeline-picker-btn'),
+    timelinePickerPanel: document.getElementById('timeline-picker-panel'),
+    timelineLabel: document.getElementById('timeline-label'),
+    timelineStamp: document.getElementById('timeline-stamp'),
+    timelineRibbonShell: document.getElementById('timeline-ribbon-shell'),
+    timelineHistoryStrip: document.getElementById('timeline-history-strip'),
+    timelineLiveIndicator: document.getElementById('timeline-live-indicator'),
+    timelineFreezeHub: document.getElementById('timeline-freeze-hub'),
+    timelineFreezeBtn: document.getElementById('timeline-freeze-btn'),
+    timelineFreezeIcon: document.getElementById('timeline-freeze-icon'),
+    timelineSlider: document.getElementById('timeline-slider'),
+    timelineProgress: document.getElementById('timeline-progress'),
+    systemMenuBtn: document.getElementById('system-menu-btn'),
+    systemMenu: document.getElementById('system-menu'),
+    configMenuRow: document.getElementById('config-menu-row'),
+    configMenuConfirmRow: document.getElementById('config-menu-confirm-row'),
+    copyUserConfigBtn: document.getElementById('copy-user-config-btn'),
+    pasteUserConfigBtn: document.getElementById('paste-user-config-btn'),
+    resetUserConfigBtn: document.getElementById('reset-user-config-btn'),
+    confirmUserConfigBtn: document.getElementById('confirm-user-config-btn'),
+    cancelUserConfigBtn: document.getElementById('cancel-user-config-btn'),
+    downloadLocalLink: document.getElementById('download-local-link'),
+    versionInfoBtn: document.getElementById('version-info-btn'),
+    runtimeModeLabel: document.getElementById('runtime-mode-label'),
+    onlineModeChip: document.getElementById('online-mode-chip'),
+    versionModalBackdrop: document.getElementById('version-modal-backdrop'),
+    versionModalClose: document.getElementById('version-modal-close'),
+    versionModalTitle: document.getElementById('version-modal-title'),
+    versionCurrentLabel: document.getElementById('version-current-label'),
+    versionOnlineBox: document.getElementById('version-online-box'),
+    connectBtn: document.getElementById('connect-btn'),
+    baudRate: document.getElementById('baud-rate'),
+    baudRateAnchor: document.getElementById('baud-rate-anchor'),
+    baudRatePresetBtn: document.getElementById('baud-rate-preset-btn'),
+    baudRatePresetMenu: document.getElementById('baud-rate-preset-menu'),
+    dataBits: document.getElementById('data-bits'),
+    stopBits: document.getElementById('stop-bits'),
+    parity: document.getElementById('parity'),
+    releaseOnBlur: document.getElementById('release-on-blur'),
+    releaseOnBlurChip: document.getElementById('release-on-blur-chip'),
+    flowControl: document.getElementById('flow-control'),
+    flowControlChip: document.getElementById('flow-control-chip'),
+    autoReconnect: document.getElementById('auto-reconnect'),
+    deviceVid: document.getElementById('device-vid'),
+    devicePid: document.getElementById('device-pid'),
+    signalDtr: document.getElementById('signal-dtr'),
+    signalRts: document.getElementById('signal-rts'),
+    signalBreak: document.getElementById('signal-break'),
+    signalDtrChip: document.getElementById('signal-dtr-chip'),
+    signalRtsChip: document.getElementById('signal-rts-chip'),
+    signalBreakChip: document.getElementById('signal-break-chip'),
+    signalCtsReadout: document.getElementById('signal-cts-readout'),
+    signalDsrReadout: document.getElementById('signal-dsr-readout'),
+    signalDcdReadout: document.getElementById('signal-dcd-readout'),
+    signalRiReadout: document.getElementById('signal-ri-readout'),
+    signalCtsValue: document.getElementById('signal-cts-value'),
+    signalDsrValue: document.getElementById('signal-dsr-value'),
+    signalDcdValue: document.getElementById('signal-dcd-value'),
+    signalRiValue: document.getElementById('signal-ri-value'),
+    advancedPanel: document.getElementById('advanced-panel'),
+    rxDisplayMode: document.getElementById('rx-display-mode'),
+    textEncoding: document.getElementById('text-encoding'),
+    appendTimestamp: document.getElementById('append-timestamp'),
+    sendMode: document.getElementById('send-mode'),
+    newlineMode: document.getElementById('newline-mode'),
+    appendNewline: document.getElementById('append-newline'),
+    layoutToggleBtn: document.getElementById('layout-toggle-btn'),
+    layoutToggleLabel: document.getElementById('layout-toggle-label'),
+    leftColumn: document.querySelector('.left-column'),
+    rightColumn: document.querySelector('.right-column'),
+    expandedLeftTop: document.querySelector('.expanded-left-top'),
+    configPanel: document.querySelector('.config-panel'),
+    parserPanel: document.querySelector('.parser-panel'),
+    chartsPanel: document.querySelector('.charts-panel'),
+    monitorPanel: document.querySelector('.monitor-panel'),
+    mobileConfigBackdrop: document.getElementById('mobile-config-backdrop'),
+    textParserPane: document.getElementById('text-parser-pane'),
+    binaryParserPane: document.getElementById('binary-parser-pane'),
+    parserModeSwitch: document.querySelector('.parser-mode-switch'),
+    textRuleOverlay: document.getElementById('text-rule-overlay'),
+    textParseRule: document.getElementById('text-parse-rule'),
+    addBinaryRowBtn: document.getElementById('add-binary-row-btn'),
+    binarySchemaList: document.getElementById('binary-schema-list'),
+    applyRecommendedRuleBtn: document.getElementById('apply-recommended-rule-btn'),
+    toggleParserResultsBtn: document.getElementById('toggle-parser-results-btn'),
+    parserPreview: document.getElementById('parser-preview'),
+    addTimeChartBtn: document.getElementById('add-time-chart-btn'),
+    addFftChartBtn: document.getElementById('add-fft-chart-btn'),
+    addBarChartBtn: document.getElementById('add-bar-chart-btn'),
+    clearChartsBtn: document.getElementById('clear-charts-btn'),
+    chartList: document.getElementById('chart-list'),
+    monitorMetaMode: document.getElementById('monitor-meta-mode'),
+    monitorMetaTx: document.getElementById('monitor-meta-tx'),
+    monitorMetaRx: document.getElementById('monitor-meta-rx'),
+    clearLiveLogBtn: document.getElementById('clear-live-log-btn'),
+    terminalJumpBtn: document.getElementById('terminal-jump-btn'),
+    terminal: document.getElementById('terminal'),
+    sendPanel: document.getElementById('send-panel'),
+    sendResizeHandle: document.getElementById('send-resize-handle'),
+    sendExtensionShell: document.getElementById('send-extension-shell'),
+    sendManualPanel: document.getElementById('send-manual-panel'),
+    sendInput: document.getElementById('send-input'),
+    sendNowBtn: document.getElementById('send-now-btn'),
+    monitorViewSwitch: document.getElementById('monitor-view-switch'),
+    monitorViewTabs: document.querySelectorAll('[data-monitor-view]'),
+    termInteraction: document.getElementById('term-interaction'),
+    termOutput: document.getElementById('term-output'),
+    termNewline: document.getElementById('term-newline'),
+    termFont: document.getElementById('term-font'),
+    termSkin: document.getElementById('term-skin'),
+    termLocalEcho: document.getElementById('term-local-echo'),
+    autoSendTile: document.getElementById('auto-send-tile'),
+    conditionSendTile: document.getElementById('condition-send-tile'),
+    presetSendTile: document.getElementById('preset-send-tile'),
+    toggleAutoSendBtn: document.getElementById('toggle-auto-send-btn'),
+    toggleAutoSendEnableBtn: document.getElementById('toggle-auto-send-enable-btn'),
+    toggleConditionSendBtn: document.getElementById('toggle-condition-send-btn'),
+    toggleConditionSendEnableBtn: document.getElementById('toggle-condition-send-enable-btn'),
+    togglePresetSendBtn: document.getElementById('toggle-preset-send-btn'),
+    togglePresetSendEnableBtn: document.getElementById('toggle-preset-send-enable-btn'),
+    autoSendModule: document.getElementById('auto-send-module'),
+    conditionSendModule: document.getElementById('condition-send-module'),
+    presetSendModule: document.getElementById('preset-send-module'),
+    autoSendSwitch: document.getElementById('auto-send-switch'),
+    conditionSendSwitch: document.getElementById('condition-send-switch'),
+    presetSendSwitch: document.getElementById('preset-send-switch'),
+    autoSendInterval: document.getElementById('auto-send-interval'),
+    addAutoItemBtn: document.getElementById('add-auto-item-btn'),
+    autoSendQueue: document.getElementById('auto-send-queue'),
+    addConditionRuleBtn: document.getElementById('add-condition-rule-btn'),
+    conditionRuleList: document.getElementById('condition-rule-list'),
+    addPresetItemBtn: document.getElementById('add-preset-item-btn'),
+    presetSendList: document.getElementById('preset-send-list'),
+    timelineFileInput: document.getElementById('timeline-file-input'),
+    toastLayer: document.getElementById('toast-layer')
+  };
+
+  const browserThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+  const initialSavedTheme = (window.__serialWebInitialPrefs && (window.__serialWebInitialPrefs.theme === 'system' || window.__serialWebInitialPrefs.theme === 'dark' || window.__serialWebInitialPrefs.theme === 'light'))
+    ? window.__serialWebInitialPrefs.theme
+    : 'system';
+  const state = {
+    version: VERSION,
+    theme: initialSavedTheme,
+    layoutExpanded: false,
+    parserMode: 'text',
+    serial: {
+      supported: isWebSerialApiAvailable(),
+      connected: false,
+      port: null,
+      portHint: null,
+      portInfoHint: null,
+      disconnectedPortRef: null,
+      reader: null,
+      writer: null,
+      disconnecting: false,
+      reconnectTask: null,
+      reconnectWakeResolve: null,
+      reconnectSession: 0,
+      reconnectCandidate: null,
+      reconnectPending: false,
+      reconnectWanted: false,
+      reconnectPhase: 'idle',
+      reconnectReason: 'none',
+      reconnectFailureKind: '',
+      reconnectFailureDetail: '',
+      reconnectNoticeShown: false,
+      reconnectSince: 0,
+      reconnectResumeElapsedMs: 0,
+      activeOpenSignature: '',
+      pendingOpenSignature: '',
+      reconfigureTimer: 0,
+      reconfigureTask: null,
+      reconfigureQueued: false,
+      signalPollTimer: null,
+      sendBusy: false,
+      sendInFlight: Promise.resolve(),
+      keepReading: false,
+      connectedAt: 0,
+      activeFlowControl: 'none',
+      blurReleaseElapsedMs: 0,
+      blurReleaseActive: false,
+      connectionEpoch: 0,
+      rxActiveEvent: null,
+      pendingCR: false,
+      deviceInfo: {
+        vid: '-',
+        pid: '-',
+        description: '浏览器未提供',
+        online: '离线'
+      },
+      signalInputs: {
+        cts: null,
+        dsr: null,
+        dcd: null,
+        ri: null
+      }
+    },
+    settings: {
+      baudRate: '115200',
+      dataBits: 8,
+      stopBits: 1,
+      parity: 'none',
+      releaseSignalsOnBlur: false,
+      flowControl: 'none',
+      signalDtr: false,
+      signalRts: false,
+      signalBreak: false,
+      autoReconnect: true,
+      rxDisplayMode: 'text',
+      textEncoding: 'utf-8',
+      appendTimestamp: true,
+      sendMode: 'ascii',
+      newlineMode: 'rn',
+      appendNewline: true
+    },
+    sendDraft: {
+      text: '',
+      hex: ''
+    },
+    session: {
+      startMs: Date.now(),
+      txBytes: 0,
+      rxBytes: 0,
+      rawChunks: [],
+      liveEvents: []
+    },
+    recording: {
+      active: false,
+      startedAt: 0,
+      rawChunks: []
+    },
+    timelines: [],
+    activeTimelineId: 'realtime',
+    playback: {
+      playing: false,
+      positionMs: 0,
+      lastTick: 0
+    },
+    parser: {
+      textRule: '',
+      binarySchema: []
+    },
+    derived: {
+      availableFields: [],
+      recommendedRule: '',
+      numericSeries: {},
+      chartSeries: {},
+      chartIntervalMs: 1,
+      resultCards: []
+    },
+    derivedRuntime: {
+      viewSignature: '',
+      parserSignature: '',
+      mode: 'text',
+      sourceKind: 'realtime',
+      lastRealtimeRawChunkIndex: 0,
+      textBaseTimestamp: 0,
+      binaryBaseTimestamp: 0,
+      numericSeries: {},
+      chartFrameCount: 0,
+      chartFrameFirstTimestamp: 0,
+      chartFrameLastTimestamp: 0,
+      chartBatchTimestamp: 0,
+      chartBatchFrameCount: 0,
+      chartIntervalAccumMs: 0,
+      chartIntervalAccumFrames: 0,
+      chartFrameIntervalMs: 0,
+      successfulFrames: [],
+      fieldTypes: new Map(),
+      latestCards: [],
+      binaryRemainders: { rx: [], tx: [] }
+    },
+    charts: [],
+    modules: {
+      autoSendOpen: false,
+      conditionSendOpen: false,
+      presetSendOpen: false
+    },
+    autoSend: {
+      enabled: false,
+      intervalMs: 1000,
+      queue: [],
+      timerId: null,
+      nextIndex: 0
+    },
+    conditionSend: {
+      enabled: false,
+      rules: []
+    },
+    presetSend: {
+      enabled: false,
+      items: [],
+      pendingExpectations: []
+    },
+    ui: {
+      pendingRefresh: false,
+      clockTimerId: null,
+      binarySchemaReparseTimerId: null,
+      dirty: {
+        status: true,
+        timelineSelect: true,
+        stats: true,
+        timelineBar: true,
+        derived: true,
+        monitor: true,
+        extensionButtons: true,
+        extensionPanel: true,
+        extensionHeights: true,
+        charts: true
+      },
+      activeViewCache: {
+        signature: '',
+        timeline: null,
+        events: [],
+        rawChunks: [],
+      range: { startTs: 0, endTs: 0, durationMs: 1 }
+    },
+    frozenRealtimeView: null,
+    liveFreezeMode: 'none',
+    liveFreezeHoverSuppressed: false,
+    chartRenderSignature: '',
+    chartPaintPending: false,
+    chartPaintForce: false,
+    timelinePickerSignature: '',
+    timelineExportOpenId: null,
+    chartPickerOpenId: '',
+    pendingConfigAction: '',
+    versionModalMarkOnClose: false,
+      terminalAtBottom: true,
+      windowFocused: document.hasFocus(),
+      textRuleGhostVisible: false,
+      connectHintUntil: 0,
+      connectHintText: '',
+      connectHintKind: 'default',
+      compactSingle: false,
+      compactConfigOpen: false,
+      monitorView: 'terminal',
+      sidebarCollapsed: false,
+      parserResultsExpanded: false,
+      parserResultsCanExpand: false,
+      chartDrag: null,
+      sendExtensionHeightOverride: 0,
+      sendExtensionResize: null,
+      modePulse: {
+        auto: { until: 0, tone: 'success', rafId: 0, timerId: 0 },
+        condition: { until: 0, tone: 'success', rafId: 0, timerId: 0 },
+        preset: { until: 0, tone: 'success', rafId: 0, timerId: 0 }
+      },
+      parserRecommendPromptRule: '',
+      parserRecommendPromptConnectionEpoch: -1
+    }
+  };
+
+  let eventIdCounter = 0;
+  let chartIdCounter = 0;
+  let queueIdCounter = 0;
+  let ruleIdCounter = 0;
+  let schemaRowIdCounter = 0;
+  let timelineIdCounter = 0;
+  let playerFrame = null;
+  let localPrefsTimerId = 0;
+  let restoringLocalPrefs = false;
+  let activeReorderDrag = null;
+
+  function markUiDirty(next = null) {
+    const dirty = state.ui.dirty;
+    if (!next) {
+      Object.keys(dirty).forEach((key) => { dirty[key] = true; });
+      return;
+    }
+    Object.entries(next).forEach(([key, value]) => {
+      if (key in dirty && value) dirty[key] = true;
+    });
+  }
+
+  function uid(prefix) {
+    if (prefix === 'evt') return `${prefix}-${++eventIdCounter}`;
+    if (prefix === 'chart') return `${prefix}-${++chartIdCounter}`;
+    if (prefix === 'queue') return `${prefix}-${++queueIdCounter}`;
+    if (prefix === 'rule') return `${prefix}-${++ruleIdCounter}`;
+    if (prefix === 'schema') return `${prefix}-${++schemaRowIdCounter}`;
+    return `${prefix}-${++timelineIdCounter}`;
+  }
+
+  function resetDerivedRuntime() {
+    state.derivedRuntime = createDerivedRuntimeSeed(
+      state.parserMode,
+      state.activeTimelineId === 'realtime' ? 'realtime' : 'timeline'
+    );
+    return state.derivedRuntime;
+  }
+
+  function invalidateDerivedCaches() {
+    resetDerivedRuntime();
+    state.ui.activeViewCache.signature = '';
+    state.ui.chartRenderSignature = '';
+    if (refs.chartList) delete refs.chartList.dataset.rendered;
+    state.charts.forEach((chart) => {
+      chart.fftCache = {};
+    });
+  }
+
+  function invalidateDerivedDataCaches() {
+    resetDerivedRuntime();
+    state.ui.activeViewCache.signature = '';
+    state.charts.forEach((chart) => {
+      chart.fftCache = {};
+    });
+  }
+
+  function clearRealtimeHistoryData() {
+    state.session.rawChunks = [];
+    state.session.liveEvents = [];
+    state.session.txBytes = 0;
+    state.session.rxBytes = 0;
+    state.serial.rxActiveEvent = null;
+    invalidateDerivedCaches();
+    if (state.activeTimelineId === 'realtime') scheduleRefresh();
+    requestAnimationFrame(forceTerminalToLatest);
+  }
+
+  function trimRealtimeRawChunks() {
+    const chunks = state.session.rawChunks;
+    if (!chunks.length) return;
+    let totalChars = 0;
+    let keepFrom = chunks.length;
+    for (let index = chunks.length - 1; index >= 0; index -= 1) {
+      totalChars += getRawChunkDisplayLength(chunks[index]);
+      keepFrom = index;
+      if (totalChars > MAX_LIVE_EVENT_TOTAL_CHARS) {
+        break;
+      }
+    }
+    if (keepFrom > 0) {
+      chunks.splice(0, keepFrom);
+    }
+  }
+
+  function trimLiveEvents() {
+    const events = state.session.liveEvents;
+    if (!events.length) return;
+    let totalChars = events.reduce((sum, event) => sum + getEventDisplayText(event).length, 0);
+    while (events.length > 1 && totalChars > MAX_LIVE_EVENT_TOTAL_CHARS) {
+      totalChars -= getEventDisplayText(events[0]).length;
+      events.shift();
+    }
+  }
+
+  function hasDynamicClockUi() {
+    return Boolean(
+      state.serial.connected
+      || state.serial.blurReleaseActive
+      || state.serial.reconnectPhase === 'trying'
+      || state.recording.active
+      || state.activeTimelineId === 'realtime'
+    );
+  }
+
+  function ensureUiClockTimer() {
+    if (state.ui.clockTimerId) return;
+    state.ui.clockTimerId = window.setInterval(() => {
+      if (!hasDynamicClockUi()) return;
+      scheduleRefresh({
+        status: true,
+        stats: true,
+        timelineBar: true
+      });
+    }, 250);
+  }
+
+  function escapeHtml(text) {
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function escapeRegex(text) {
+    return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function clamp(num, min, max) {
+    return Math.min(max, Math.max(min, num));
+  }
+
+  function formatDuration(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const h = String(Math.floor(total / 3600)).padStart(2, '0');
+    const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+    const s = String(total % 60).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  }
+
+  function nowPreciseMs() {
+    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+      return HIGH_RES_TIME_EPOCH_MS + performance.now();
+    }
+    return Date.now();
+  }
+
+  function normalizeTimestampMs(value, fallback = nowPreciseMs()) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  }
+
+  function formatStamp(ts) {
+    const date = new Date(normalizeTimestampMs(ts));
+    const tenths = Math.floor(date.getMilliseconds() / 100);
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}.${tenths}`;
+  }
+
+  function formatTimelineClock(ms) {
+    const total = Math.max(0, Math.floor(ms));
+    const minutes = Math.floor(total / 60000);
+    const seconds = Math.floor((total % 60000) / 1000);
+    const millis = total % 1000;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
+  }
+
+  function shouldWaitForBlurReconnect() {
+    return Boolean(state.settings.releaseSignalsOnBlur)
+      && (!state.ui.windowFocused || document.visibilityState === 'hidden');
+  }
+
+  function enterBlurReconnectWait(elapsedMs = state.serial.blurReleaseElapsedMs) {
+    state.serial.reconnectWanted = false;
+    state.serial.reconnectPending = false;
+    state.serial.reconnectPhase = 'idle';
+    state.serial.reconnectReason = 'blur-release';
+    state.serial.reconnectCandidate = null;
+    state.serial.blurReleaseActive = true;
+    state.serial.blurReleaseElapsedMs = Math.max(0, elapsedMs || 0);
+    wakeReconnectLoop();
+    updateSerialStatus();
+  }
+
+  function bytesToHex(bytes) {
+    return Array.from(bytes || []).map((value) => value.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+  }
+
+  function normalizeHexString(input) {
+    return input.replace(/0x/gi, ' ').replace(/[^0-9a-fA-F]/g, ' ').trim();
+  }
+
+  function parseHexString(input) {
+    const normalized = normalizeHexString(String(input || ''));
+    if (!normalized) return new Uint8Array();
+    const parts = normalized.split(/\s+/).filter(Boolean);
+    const values = [];
+    for (const part of parts) {
+      if (part.length > 2) {
+        for (let i = 0; i < part.length; i += 2) {
+          const piece = part.slice(i, i + 2);
+          if (!/^[0-9a-fA-F]{2}$/.test(piece)) {
+            throw new Error(`非法 HEX 字节: ${piece}`);
+          }
+          values.push(parseInt(piece, 16));
+        }
+        continue;
+      }
+      if (!/^[0-9a-fA-F]{1,2}$/.test(part)) {
+        throw new Error(`非法 HEX 字节: ${part}`);
+      }
+      values.push(parseInt(part, 16));
+    }
+    return Uint8Array.from(values);
+  }
+
+  function appendLineEnding(bytes, newlineMode) {
+    const suffix = newlineMode === 'r' ? [0x0d] : newlineMode === 'n' ? [0x0a] : [0x0d, 0x0a];
+    const merged = new Uint8Array(bytes.length + suffix.length);
+    merged.set(bytes, 0);
+    merged.set(suffix, bytes.length);
+    return merged;
+  }
+
+  function createRawChunk(direction, bytes, timestamp = nowPreciseMs(), metadata = {}) {
+    const normalizedBytes = Array.from(bytes || []);
+    return {
+      id: uid('raw'),
+      timestamp: normalizeTimestampMs(timestamp),
+      direction,
+      type: direction,
+      bytes: normalizedBytes,
+      metadata: { ...metadata }
+    };
+  }
+
+  function getRawChunkDisplayLength(chunk) {
+    const bytes = Uint8Array.from(chunk?.bytes || []);
+    if (!bytes.length) return 0;
+    const text = decodeBytes(bytes, state.settings.textEncoding);
+    return String(text || '').length || bytes.length;
+  }
+
+  function recordRawChunk(direction, bytes, timestamp = nowPreciseMs(), metadata = {}) {
+    const chunk = createRawChunk(direction, bytes, timestamp, metadata);
+    if (state.recording.active) {
+      state.recording.rawChunks.push(chunk);
+    }
+    state.session.rawChunks.push(chunk);
+    trimRealtimeRawChunks();
+    return chunk;
+  }
+
+  function shouldUseFrozenRealtimeView() {
+    return state.activeTimelineId === 'realtime' && state.ui.liveFreezeMode !== 'none';
+  }
+
+  function isRealtimeFreezeAvailable() {
+    return state.activeTimelineId === 'realtime'
+      && state.serial.connected
+      && !state.recording.active
+      && !state.serial.blurReleaseActive
+      && state.serial.reconnectPhase !== 'trying';
+  }
+
+  function snapshotRealtimeView() {
+    const liveEvents = state.session.liveEvents || [];
+    const rawChunks = state.session.rawChunks || [];
+    const lastEvent = liveEvents[liveEvents.length - 1];
+    const endTs = lastEvent ? lastEvent.timestamp : nowPreciseMs();
+    state.ui.frozenRealtimeView = {
+      signature: [
+        'realtime-freeze',
+        liveEvents.length,
+        lastEvent?.id || '',
+        rawChunks.length,
+        rawChunks[rawChunks.length - 1]?.id || '',
+        state.session.startMs,
+        Number(endTs).toFixed(3)
+      ].join('|'),
+      timeline: null,
+      events: liveEvents.map((event) => ({
+        ...event,
+        bytes: Array.isArray(event?.bytes) ? event.bytes.slice() : [],
+        metadata: event?.metadata ? { ...event.metadata } : {}
+      })),
+      rawChunks: rawChunks.map((chunk) => ({
+        ...chunk,
+        bytes: Array.isArray(chunk?.bytes) ? chunk.bytes.slice() : [],
+        metadata: chunk?.metadata ? { ...chunk.metadata } : {}
+      })),
+      range: {
+        startTs: state.session.startMs,
+        endTs,
+        durationMs: Math.max(1, endTs - state.session.startMs)
+      }
+    };
+  }
+
+  function refreshRealtimeFreezeView() {
+    invalidateDerivedDataCaches();
+    scheduleRefresh({ stats: true, timelineBar: true, derived: true, monitor: true, charts: true });
+  }
+
+  function resetRealtimeFreezeState(rearm = true) {
+    const changed = state.ui.liveFreezeMode !== 'none'
+      || Boolean(state.ui.frozenRealtimeView)
+      || state.ui.liveFreezeHoverSuppressed === rearm;
+    state.ui.liveFreezeMode = 'none';
+    state.ui.liveFreezeHoverSuppressed = !rearm;
+    state.ui.frozenRealtimeView = null;
+    return changed;
+  }
+
+  function clearRealtimeFreezeHover(rearm = true) {
+    if (state.ui.liveFreezeMode === 'locked') return;
+    if (shouldPreserveTerminalSelectionDuringFreeze()) return;
+    const changed = state.ui.liveFreezeMode !== 'none'
+      || Boolean(state.ui.frozenRealtimeView)
+      || state.ui.liveFreezeHoverSuppressed === rearm;
+    state.ui.liveFreezeMode = 'none';
+    state.ui.liveFreezeHoverSuppressed = !rearm;
+    state.ui.frozenRealtimeView = null;
+    if (changed) {
+      refreshRealtimeFreezeView();
+    }
+  }
+
+  function hasTerminalTextSelection() {
+    const selection = window.getSelection?.();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return false;
+    const anchor = selection.anchorNode;
+    const focus = selection.focusNode;
+    return Boolean(
+      refs.terminal
+      && ((anchor && refs.terminal.contains(anchor)) || (focus && refs.terminal.contains(focus)))
+    );
+  }
+
+  function shouldPreserveTerminalSelectionDuringFreeze() {
+    if (state.activeTimelineId !== 'realtime' || state.ui.liveFreezeMode === 'none') return false;
+    return hasTerminalTextSelection();
+  }
+
+  function shouldPreserveTerminalSelectionForMonitor() {
+    if (!hasTerminalTextSelection()) return false;
+    if (state.activeTimelineId === 'realtime') return state.ui.liveFreezeMode !== 'none';
+    return !state.playback.playing;
+  }
+
+  function syncRealtimeFreezeState() {
+    if (!isRealtimeFreezeAvailable()) {
+      if (resetRealtimeFreezeState(true)) {
+        refreshRealtimeFreezeView();
+      }
+      return;
+    }
+    if (shouldUseFrozenRealtimeView()) {
+      if (!state.ui.frozenRealtimeView) snapshotRealtimeView();
+      return;
+    }
+    state.ui.frozenRealtimeView = null;
+  }
+
+  function newlineText(mode) {
+    if (mode === 'r') return '\r';
+    if (mode === 'n') return '\n';
+    return '\r\n';
+  }
+
+  function normalizeTextLineEndings(text, newlineMode) {
+    return String(text ?? '').replace(/\r\n|\r|\n/g, newlineText(newlineMode));
+  }
+
+  function decodeBytes(bytes, encoding) {
+    try {
+      return new TextDecoder(encoding).decode(bytes);
+    } catch (error) {
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+  }
+
+  function encodeText(text, encoding) {
+    const value = String(text || '');
+    if (encoding === 'ascii') {
+      return Uint8Array.from(Array.from(value).map((char) => char.charCodeAt(0) & 0x7f));
+    }
+    if (encoding === 'latin1') {
+      return Uint8Array.from(Array.from(value).map((char) => char.charCodeAt(0) & 0xff));
+    }
+    if (encoding === 'utf-16le') {
+      const buffer = new Uint8Array(value.length * 2);
+      for (let index = 0; index < value.length; index += 1) {
+        const code = value.charCodeAt(index);
+        buffer[index * 2] = code & 0xff;
+        buffer[index * 2 + 1] = code >> 8;
+      }
+      return buffer;
+    }
+    return new TextEncoder().encode(value);
+  }
+
+  function safeHexBytes(value) {
+    try {
+      return Array.from(parseHexString(value));
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function encodeBase64Utf8(text) {
+    return btoa(unescape(encodeURIComponent(String(text ?? ''))));
+  }
+
+  function decodeBase64Utf8(text) {
+    return decodeURIComponent(escape(atob(text)));
+  }
+
+  function bytesToCompactHex(bytes) {
+    return bytesToHex(bytes).replace(/\s+/g, '');
+  }
+
+  function formatFileTimestamp(ts) {
+    const date = new Date(normalizeTimestampMs(ts));
+    const pad2 = (value) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}-${pad2(date.getHours())}${pad2(date.getMinutes())}${pad2(date.getSeconds())}`;
+  }
+
+  function sanitizeFileStem(name, fallback = 'timeline') {
+    const normalized = String(name || '').trim().replace(/[\\/:*?"<>|]/g, '_');
+    return normalized || fallback;
+  }
+
+  function formatReadableTimestamp(ts) {
+    const date = new Date(normalizeTimestampMs(ts));
+    const pad2 = (value) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+  }
+
+  function toast(title, body, kind = 'success', actions = [], options = {}) {
+    const toastKey = String(options.key || `${kind}::${title}::${body}`);
+    let item = Array.from(refs.toastLayer.querySelectorAll('.toast')).find((node) => node._toastKey === toastKey) || null;
+    if (!item) {
+      item = document.createElement('div');
+      refs.toastLayer.appendChild(item);
+    } else {
+      refs.toastLayer.appendChild(item);
+    }
+    item._toastKey = toastKey;
+    item.className = `toast ${kind}`;
+    const actionsHtml = actions.length
+      ? `<div class="toast-actions">${actions.map((action, index) => `<button class="toast-action-btn ${escapeHtml(action.kind || '')}" type="button" data-toast-action="${index}">${escapeHtml(action.label)}</button>`).join('')}</div>`
+      : '';
+    item.innerHTML = `<div class="toast-head"><div class="toast-title">${escapeHtml(title)}</div><button class="toast-close" type="button" aria-label="关闭提示">×</button></div><div class="toast-body">${escapeHtml(body)}</div>${actionsHtml}`;
+    const close = () => {
+      if (item._toastTimer) {
+        clearTimeout(item._toastTimer);
+        item._toastTimer = 0;
+      }
+      item.remove();
+    };
+    item.querySelector('.toast-close')?.addEventListener('click', close);
+    item.querySelectorAll('[data-toast-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const action = actions[Number(button.getAttribute('data-toast-action'))];
+        if (action?.onClick) action.onClick();
+        if (!action?.keepOpen) close();
+      });
+    });
+    if (item._toastTimer) {
+      clearTimeout(item._toastTimer);
+    }
+    item._toastTimer = setTimeout(close, 10000);
+  }
+
+  function getSerialErrorInfo(error, fallback = '串口操作失败') {
+    const message = String(error?.message || '').trim();
+    if (error?.name === 'NotFoundError') {
+      return { kind: 'cancelled', detail: '未选择串口设备' };
+    }
+    if (message && /access denied|permission|denied/i.test(message)) {
+      return { kind: 'permission', detail: '串口访问被拒绝，请检查系统权限' };
+    }
+    if (error?.name === 'InvalidStateError') {
+      return { kind: 'occupied', detail: '串口已被占用或当前状态不可操作' };
+    }
+    if (message && /busy|in use|claimed|resource busy|already open/i.test(message)) {
+      return { kind: 'occupied', detail: '串口已被占用，请关闭其他串口软件后重试' };
+    }
+    if (
+      error?.name === 'NetworkError'
+      || (message && /device has been lost|disconnected|not found|failed to open|port is closed|network error/i.test(message))
+    ) {
+      return { kind: 'missing', detail: '串口设备已断开或不可用' };
+    }
+    return { kind: 'generic', detail: message || fallback };
+  }
+
+  function isWebSerialApiAvailable() {
+    return Boolean(
+      navigator?.serial
+      && typeof navigator.serial.requestPort === 'function'
+      && typeof navigator.serial.getPorts === 'function'
+    );
+  }
+
+  function getUnifiedConnectionFailureDetail() {
+    return '串口可能被占用，请关闭其他串口软件后重试';
+  }
+
+  function showConnectButtonHint(text, kind = 'default', durationMs = 2000) {
+    state.ui.connectHintText = text;
+    state.ui.connectHintKind = kind;
+    state.ui.connectHintUntil = Date.now() + durationMs;
+    updateSerialStatus();
+    window.setTimeout(() => {
+      if (Date.now() >= state.ui.connectHintUntil) {
+        state.ui.connectHintUntil = 0;
+        state.ui.connectHintText = '';
+        state.ui.connectHintKind = 'default';
+        updateSerialStatus();
+      }
+    }, durationMs + 20);
+  }
+
+  function shortConnectHint(action) {
+    return `${action} | 串口可能被占用`;
+  }
+
+  function normalizeSendOptions(sendOptions = state.settings) {
+    return {
+      sendMode: sendOptions.sendMode === 'hex' ? 'hex' : 'ascii',
+      textEncoding: sendOptions.textEncoding || state.settings.textEncoding,
+      appendNewline: typeof sendOptions.appendNewline === 'boolean' ? sendOptions.appendNewline : Boolean(state.settings.appendNewline),
+      newlineMode: ['r', 'n', 'rn'].includes(sendOptions.newlineMode) ? sendOptions.newlineMode : (['r', 'n', 'rn'].includes(state.settings.newlineMode) ? state.settings.newlineMode : 'rn')
+    };
+  }
+
+  function getSendInputPlaceholder() {
+    return state.settings.sendMode === 'hex'
+      ? '输入原始十六进制内容'
+      : '输入发送内容';
+  }
+
+  function sanitizeHexInputValue(value) {
+    return String(value || '').replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+  }
+
+  function formatHexInputDisplay(raw) {
+    const groups = String(raw || '').match(/.{1,2}/g);
+    return groups ? groups.join(' ') : '';
+  }
+
+  function bytesToRawHex(bytes) {
+    return sanitizeHexInputValue(bytesToHex(bytes));
+  }
+
+  function textToRawHex(text) {
+    return bytesToRawHex(encodeText(String(text || ''), state.settings.textEncoding));
+  }
+
+  function rawHexToText(raw) {
+    const normalized = sanitizeHexInputValue(raw);
+    if (!normalized) return '';
+    try {
+      return decodeBytes(parseHexString(normalized), state.settings.textEncoding);
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function preservedRawHexAttrs(raw, displayText) {
+    const normalized = sanitizeHexInputValue(raw);
+    if (!normalized) return '';
+    return ` data-raw-hex="${escapeHtml(normalized)}" data-preserved-text="${escapeHtml(displayText)}"`;
+  }
+
+  function getTextInputRawHex(input) {
+    const preservedRaw = sanitizeHexInputValue(input.dataset.rawHex || '');
+    if (preservedRaw && input.value === (input.dataset.preservedText || '')) {
+      return preservedRaw;
+    }
+    return textToRawHex(input.value);
+  }
+
+  function getFieldDisplayForMode(record, valueKey, rawKey, mode) {
+    if (mode === 'hex') {
+      const raw = sanitizeHexInputValue(record?.[rawKey] || record?.[valueKey] || '');
+      return formatHexInputDisplay(raw);
+    }
+    return String(record?.[valueKey] || '');
+  }
+
+  function getFieldPreservedRawAttrs(record, rawKey, displayText, mode) {
+    return mode === 'hex' ? '' : preservedRawHexAttrs(record?.[rawKey] || '', displayText);
+  }
+
+  function setFieldFromRawHex(record, valueKey, rawKey, raw, mode) {
+    const normalized = sanitizeHexInputValue(raw);
+    record[rawKey] = normalized;
+    record[valueKey] = mode === 'hex'
+      ? formatHexInputDisplay(normalized)
+      : rawHexToText(normalized);
+  }
+
+  function convertFieldForMode(record, valueKey, rawKey, previousMode, nextMode) {
+    const raw = previousMode === 'hex'
+      ? sanitizeHexInputValue(record?.[rawKey] || record?.[valueKey] || '')
+      : (sanitizeHexInputValue(record?.[rawKey] || '') || textToRawHex(record?.[valueKey] || ''));
+    setFieldFromRawHex(record, valueKey, rawKey, raw, nextMode);
+  }
+
+  function hasByteBackedValue(displayValue, rawHex = '') {
+    return Boolean(String(displayValue || '').trim() || sanitizeHexInputValue(rawHex).length);
+  }
+
+  function getSendPayloadArgs(displayValue, rawHex = '', sendOptions = state.settings) {
+    const raw = sanitizeHexInputValue(rawHex || '');
+    if (raw && sendOptions.sendMode === 'hex') {
+      return {
+        payload: raw,
+        sendOptions: {
+          ...sendOptions,
+          displayTextOverride: String(displayValue || '')
+        }
+      };
+    }
+    return {
+      payload: String(displayValue || ''),
+      sendOptions
+    };
+  }
+
+  function getSendRecordPayloadArgs(record, valueKey = 'payload', rawKey = 'payloadRawHex', sendOptions = state.settings) {
+    const displayValue = String(record?.[valueKey] || '');
+    const raw = sanitizeHexInputValue(record?.[rawKey] || '')
+      || (sendOptions.sendMode === 'hex' ? sanitizeHexInputValue(displayValue) : '');
+    return getSendPayloadArgs(displayValue, raw, sendOptions);
+  }
+
+  function countHexCharsBefore(text, index) {
+    if (index <= 0) return 0;
+    return sanitizeHexInputValue(String(text || '').slice(0, index)).length;
+  }
+
+  function getDisplayCaretFromRawIndex(rawIndex) {
+    if (rawIndex <= 0) return 0;
+    return rawIndex + Math.floor((rawIndex - 1) / 2);
+  }
+
+  function getSendModePlaceholder() {
+    return state.settings.sendMode === 'hex'
+      ? 'HEX 内容，例如 AA 55 01'
+      : '发送内容';
+  }
+
+  function getSendDisplayBytes(value, mode = state.settings.sendMode) {
+    return mode === 'hex'
+      ? parseHexString(String(value || ''))
+      : encodeText(String(value || ''), state.settings.textEncoding);
+  }
+
+  function formatSendBytesForMode(bytes, mode = state.settings.sendMode) {
+    return mode === 'hex'
+      ? bytesToHex(bytes)
+      : decodeBytes(bytes, state.settings.textEncoding);
+  }
+
+  function convertSendDisplayValue(value, fromMode, toMode) {
+    if (fromMode === toMode) {
+      return toMode === 'hex'
+        ? formatHexInputDisplay(sanitizeHexInputValue(value))
+        : String(value || '');
+    }
+    try {
+      return formatSendBytesForMode(getSendDisplayBytes(value, fromMode), toMode);
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function normalizeSendContentForMode(value, mode = state.settings.sendMode) {
+    return mode === 'hex'
+      ? formatHexInputDisplay(sanitizeHexInputValue(value))
+      : String(value || '');
+  }
+
+  function looksLikeHexDisplayValue(value) {
+    const text = String(value || '').trim();
+    if (!text) return false;
+    if (!/^[0-9a-fA-FxX\s,;:_-]+$/.test(text)) return false;
+    return sanitizeHexInputValue(text).length > 0;
+  }
+
+  function normalizePersistedSendContent(value, mode = state.settings.sendMode) {
+    const text = String(value || '');
+    if (mode !== 'hex') return text;
+    if (looksLikeHexDisplayValue(text)) {
+      try {
+        return bytesToHex(parseHexString(text));
+      } catch (error) {
+        return formatHexInputDisplay(sanitizeHexInputValue(text));
+      }
+    }
+    return formatSendBytesForMode(encodeText(text, state.settings.textEncoding), 'hex');
+  }
+
+  function normalizeHexInputElement(input) {
+    const originalValue = input.value;
+    const selectionStart = input.selectionStart ?? originalValue.length;
+    const rawCursor = countHexCharsBefore(originalValue, selectionStart);
+    const raw = sanitizeHexInputValue(originalValue);
+    const display = formatHexInputDisplay(raw);
+    input.dataset.rawHex = raw;
+    if (input.value !== display) {
+      input.value = display;
+    }
+    const displayCaret = Math.min(display.length, getDisplayCaretFromRawIndex(rawCursor));
+    input.setSelectionRange?.(displayCaret, displayCaret);
+    return display;
+  }
+
+  function normalizeSendContentInputValue(input) {
+    if (state.settings.sendMode === 'hex') {
+      return normalizeHexInputElement(input);
+    }
+    const raw = getTextInputRawHex(input);
+    input.dataset.rawHex = raw;
+    input.dataset.preservedText = input.value;
+    return input.value;
+  }
+
+  function getDefaultSendContent(text) {
+    return normalizeSendContentForMode(
+      state.settings.sendMode === 'hex'
+        ? formatSendBytesForMode(encodeText(text, state.settings.textEncoding), 'hex')
+        : text
+    );
+  }
+
+  function getReceiveModePlaceholder() {
+    return state.settings.rxDisplayMode === 'hex'
+      ? 'HEX 匹配内容，例如 4F 4B'
+      : '匹配内容';
+  }
+
+  function receiveModeToDisplayMode(mode = state.settings.rxDisplayMode) {
+    return mode === 'hex' ? 'hex' : 'ascii';
+  }
+
+  function convertReceiveDisplayValue(value, fromMode, toMode) {
+    return convertSendDisplayValue(value, receiveModeToDisplayMode(fromMode), receiveModeToDisplayMode(toMode));
+  }
+
+  function normalizeReceiveContentForMode(value, mode = state.settings.rxDisplayMode) {
+    return mode === 'hex'
+      ? formatHexInputDisplay(sanitizeHexInputValue(value))
+      : String(value || '');
+  }
+
+  function normalizePersistedReceiveContent(value, mode = state.settings.rxDisplayMode) {
+    const text = String(value || '');
+    if (mode !== 'hex') return text;
+    if (looksLikeHexDisplayValue(text)) {
+      try {
+        return bytesToHex(parseHexString(text));
+      } catch (error) {
+        return formatHexInputDisplay(sanitizeHexInputValue(text));
+      }
+    }
+    return formatSendBytesForMode(encodeText(text, state.settings.textEncoding), 'hex');
+  }
+
+  function normalizeSnapshotReceiveContent(value, mode = state.settings.rxDisplayMode, schemaVersion = 0) {
+    const text = String(value || '');
+    if (Number(schemaVersion) >= RECEIVE_CONTENT_SCHEMA_VERSION) {
+      return normalizePersistedReceiveContent(text, mode);
+    }
+    return mode === 'hex'
+      ? convertReceiveDisplayValue(text, 'text', 'hex')
+      : text;
+  }
+
+  function normalizeReceiveContentInputValue(input) {
+    if (state.settings.rxDisplayMode === 'hex') {
+      return normalizeHexInputElement(input);
+    }
+    const raw = getTextInputRawHex(input);
+    input.dataset.rawHex = raw;
+    input.dataset.preservedText = input.value;
+    return input.value;
+  }
+
+  function getDefaultReceiveContent(text) {
+    return normalizeReceiveContentForMode(
+      state.settings.rxDisplayMode === 'hex'
+        ? formatSendBytesForMode(encodeText(text, state.settings.textEncoding), 'hex')
+        : text
+    );
+  }
+
+  function captureReceiveContentInputsFromRefs(mode = state.settings.rxDisplayMode) {
+    refs.conditionRuleList?.querySelectorAll('[data-rule-id]').forEach((row) => {
+      const rule = state.conditionSend.rules.find((entry) => entry.id === row.dataset.ruleId);
+      const input = row.querySelector('[data-rule-pattern]');
+      if (rule && input) {
+        rule.pattern = mode === 'hex' ? normalizeReceiveContentInputValue(input) : input.value;
+        rule.patternRawHex = mode === 'hex'
+          ? sanitizeHexInputValue(input.dataset.rawHex || input.value)
+          : getTextInputRawHex(input);
+      }
+    });
+    refs.presetSendList?.querySelectorAll('[data-preset-id]').forEach((row) => {
+      const item = state.presetSend.items.find((entry) => entry.id === row.dataset.presetId);
+      const input = row.querySelector('[data-preset-expected]');
+      if (item && input) {
+        item.expected = mode === 'hex' ? normalizeReceiveContentInputValue(input) : input.value;
+        item.expectedRawHex = mode === 'hex'
+          ? sanitizeHexInputValue(input.dataset.rawHex || input.value)
+          : getTextInputRawHex(input);
+      }
+    });
+  }
+
+  function switchReceiveDisplayMode(nextMode) {
+    nextMode = nextMode === 'hex' ? 'hex' : 'text';
+    const previousMode = state.settings.rxDisplayMode === 'hex' ? 'hex' : 'text';
+    if (previousMode === nextMode) return;
+    captureReceiveContentInputsFromRefs(previousMode);
+    state.conditionSend.rules.forEach((rule) => {
+      convertFieldForMode(rule, 'pattern', 'patternRawHex', previousMode, nextMode);
+    });
+    state.presetSend.items.forEach((item) => {
+      convertFieldForMode(item, 'expected', 'expectedRawHex', previousMode, nextMode);
+    });
+    state.settings.rxDisplayMode = nextMode;
+    renderSendConfigLists('condition');
+    renderSendConfigLists('preset');
+    scheduleLocalPrefsSave();
+    scheduleRefresh({ monitor: true, extensionPanel: true });
+  }
+
+  function syncSendInputModeUI() {
+    refs.sendInput.placeholder = getSendInputPlaceholder();
+    if (state.settings.sendMode === 'hex') {
+      const raw = sanitizeHexInputValue(
+        state.sendDraft.hex
+        || convertSendDisplayValue(state.sendDraft.text, 'ascii', 'hex')
+        || refs.sendInput.dataset.rawHex
+        || refs.sendInput.value
+      );
+      state.sendDraft.hex = raw;
+      refs.sendInput.dataset.rawHex = raw;
+      delete refs.sendInput.dataset.preservedText;
+      refs.sendInput.value = formatHexInputDisplay(raw);
+    } else {
+      const displayText = String(state.sendDraft.text || rawHexToText(state.sendDraft.hex) || '');
+      refs.sendInput.value = displayText;
+      if (state.sendDraft.hex) {
+        refs.sendInput.dataset.rawHex = sanitizeHexInputValue(state.sendDraft.hex);
+        refs.sendInput.dataset.preservedText = displayText;
+      } else {
+        delete refs.sendInput.dataset.rawHex;
+        delete refs.sendInput.dataset.preservedText;
+      }
+      state.sendDraft.text = refs.sendInput.value;
+    }
+  }
+
+  function normalizeSendInputValue() {
+    if (state.settings.sendMode !== 'hex') {
+      state.sendDraft.text = refs.sendInput.value;
+      state.sendDraft.hex = getTextInputRawHex(refs.sendInput);
+      refs.sendInput.dataset.rawHex = state.sendDraft.hex;
+      refs.sendInput.dataset.preservedText = refs.sendInput.value;
+      return;
+    }
+    const display = normalizeHexInputElement(refs.sendInput);
+    const raw = refs.sendInput.dataset.rawHex || sanitizeHexInputValue(display);
+    state.sendDraft.hex = raw;
+  }
+
+  function captureSendDraftFromInput() {
+    if (!refs.sendInput) return;
+    if (state.settings.sendMode === 'hex') {
+      state.sendDraft.hex = sanitizeHexInputValue(refs.sendInput.dataset.rawHex || refs.sendInput.value);
+      return;
+    }
+    state.sendDraft.text = refs.sendInput.value;
+    state.sendDraft.hex = getTextInputRawHex(refs.sendInput);
+  }
+
+  function captureSendContentInputsFromRefs(mode = state.settings.sendMode) {
+    if (refs.sendInput) {
+      captureSendDraftFromInput();
+    }
+    refs.autoSendQueue?.querySelectorAll('[data-queue-id]').forEach((row) => {
+      const item = state.autoSend.queue.find((entry) => entry.id === row.dataset.queueId);
+      const input = row.querySelector('[data-queue-payload]');
+      if (item && input) {
+        item.payload = mode === 'hex' ? normalizeSendContentInputValue(input) : input.value;
+        item.payloadRawHex = mode === 'hex'
+          ? sanitizeHexInputValue(input.dataset.rawHex || input.value)
+          : getTextInputRawHex(input);
+      }
+    });
+    refs.conditionRuleList?.querySelectorAll('[data-rule-id]').forEach((row) => {
+      const rule = state.conditionSend.rules.find((entry) => entry.id === row.dataset.ruleId);
+      const input = row.querySelector('[data-rule-response]');
+      if (rule && input) {
+        rule.response = mode === 'hex' ? normalizeSendContentInputValue(input) : input.value;
+        rule.responseRawHex = mode === 'hex'
+          ? sanitizeHexInputValue(input.dataset.rawHex || input.value)
+          : getTextInputRawHex(input);
+      }
+    });
+    refs.presetSendList?.querySelectorAll('[data-preset-id]').forEach((row) => {
+      const item = state.presetSend.items.find((entry) => entry.id === row.dataset.presetId);
+      const input = row.querySelector('[data-preset-payload]');
+      if (item && input) {
+        item.payload = mode === 'hex' ? normalizeSendContentInputValue(input) : input.value;
+        item.payloadRawHex = mode === 'hex'
+          ? sanitizeHexInputValue(input.dataset.rawHex || input.value)
+          : getTextInputRawHex(input);
+      }
+    });
+  }
+
+  function switchSendDisplayMode(nextMode) {
+    const previousMode = state.settings.sendMode === 'hex' ? 'hex' : 'ascii';
+    if (previousMode === nextMode) return;
+    captureSendContentInputsFromRefs(previousMode);
+    if (nextMode === 'hex') {
+      state.sendDraft.hex = sanitizeHexInputValue(state.sendDraft.hex || textToRawHex(state.sendDraft.text));
+    } else {
+      state.sendDraft.text = rawHexToText(state.sendDraft.hex);
+    }
+    state.autoSend.queue.forEach((item) => {
+      convertFieldForMode(item, 'payload', 'payloadRawHex', previousMode, nextMode);
+    });
+    state.conditionSend.rules.forEach((rule) => {
+      convertFieldForMode(rule, 'response', 'responseRawHex', previousMode, nextMode);
+    });
+    state.presetSend.items.forEach((item) => {
+      convertFieldForMode(item, 'payload', 'payloadRawHex', previousMode, nextMode);
+    });
+    state.settings.sendMode = nextMode;
+    syncSendInputModeUI();
+    renderSendConfigLists();
+    scheduleLocalPrefsSave();
+  }
+
+  function captureSettingsInputsFromRefs() {
+    if (!refs.baudRate) return;
+    const serialOptions = syncSerialOptionState(getSerialOpenOptions());
+    state.settings.baudRate = String(serialOptions.baudRate);
+    state.settings.dataBits = serialOptions.dataBits;
+    state.settings.stopBits = serialOptions.stopBits;
+    state.settings.parity = serialOptions.parity;
+    state.settings.releaseSignalsOnBlur = Boolean(refs.releaseOnBlur?.checked);
+    state.settings.flowControl = serialOptions.flowControl;
+    state.settings.signalDtr = Boolean(refs.signalDtr?.checked);
+    state.settings.signalRts = Boolean(refs.signalRts?.checked);
+    state.settings.signalBreak = Boolean(refs.signalBreak?.checked);
+    state.settings.autoReconnect = Boolean(refs.autoReconnect?.checked);
+    state.settings.rxDisplayMode = refs.rxDisplayMode?.checked ? 'hex' : 'text';
+    state.settings.textEncoding = refs.textEncoding?.value || state.settings.textEncoding;
+    state.settings.appendTimestamp = Boolean(refs.appendTimestamp?.checked);
+    state.settings.sendMode = refs.sendMode?.checked ? 'hex' : 'ascii';
+    state.settings.newlineMode = refs.newlineMode?.value || state.settings.newlineMode;
+    state.settings.appendNewline = Boolean(refs.appendNewline?.checked);
+  }
+
+  function buildPayloadFrame(payload, sendOptions = state.settings) {
+    const displayTextOverride = typeof sendOptions?.displayTextOverride === 'string'
+      ? sendOptions.displayTextOverride
+      : null;
+    const options = normalizeSendOptions(sendOptions);
+    let bytes;
+    let displayText = String(payload ?? '');
+    if (options.sendMode === 'hex') {
+      bytes = parseHexString(displayText);
+      displayText = displayTextOverride ?? bytesToHex(bytes);
+    } else {
+      const normalizedText = normalizeTextLineEndings(displayText, options.newlineMode);
+      bytes = encodeText(normalizedText, options.textEncoding);
+      displayText = displayTextOverride ?? displayText;
+    }
+    if (options.appendNewline) {
+      bytes = appendLineEnding(bytes, options.newlineMode);
+    }
+    return { bytes, displayText, options };
+  }
+
+  function applyParserGraphStateSnapshot(snapshot) {
+    if (!snapshot) return;
+    state.parserMode = snapshot.mode === 'binary' ? 'binary' : 'text';
+    state.parser.textRule = String(snapshot.text?.rule || snapshot.textRule || '');
+    state.parser.binarySchema = Array.isArray(snapshot.binary?.rows)
+      ? snapshot.binary.rows.map((row) => normalizeBinarySchemaRowFromConfig(row))
+      : Array.isArray(snapshot.binarySchema)
+        ? snapshot.binarySchema.map((row) => normalizeBinarySchemaRowFromConfig(row))
+        : [];
+    ensureBinarySchemaRow();
+    state.charts = Array.isArray(snapshot.charts)
+      ? snapshot.charts.map((chart) => hydrateChartFromConfig(chart))
+      : Array.isArray(snapshot.items)
+        ? snapshot.items.map((chart) => hydrateChartFromConfig(chart))
+        : [];
+    state.ui.chartPickerOpenId = '';
+    invalidateDerivedCaches();
+    syncParserInputs();
+  }
+
+  function snapshotTimelineGraphConfig() {
+    return {
+      version: 2,
+      userConfig: buildLocalPrefsSnapshot()
+    };
+  }
+
+  function applyTimelineGraphConfig(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return;
+    applyUserConfigSnapshot(snapshot.userConfig, { persist: false });
+  }
+
+  function resolveTheme(theme) {
+    if (theme === 'system') return browserThemeQuery.matches ? 'dark' : 'light';
+    return theme;
+  }
+
+  function applyTheme() {
+    var resolved = resolveTheme(state.theme);
+    document.documentElement.classList.toggle('theme-dark', resolved === 'dark');
+    appEl.classList.toggle('theme-dark', resolved === 'dark');
+    updateTerminalTheme();
+    if (refs.themeGroup) {
+      refs.themeGroup.classList.remove('pos-light', 'pos-dark');
+      if (state.theme === 'light') refs.themeGroup.classList.add('pos-light');
+      else if (state.theme === 'dark') refs.themeGroup.classList.add('pos-dark');
+      refs.themeOpts.forEach(function(opt) {
+        opt.classList.toggle('is-active', opt.dataset.theme === state.theme);
+      });
+    }
+    window.__setSerialWebFavicon?.();
+  }
+
+  function syncThemeFromBrowser() {
+    if (state.theme === 'system') {
+      applyTheme();
+      renderCharts();
+    }
+  }
+
+  if (typeof browserThemeQuery.addEventListener === 'function') {
+    browserThemeQuery.addEventListener('change', syncThemeFromBrowser);
+  } else if (typeof browserThemeQuery.addListener === 'function') {
+    browserThemeQuery.addListener(syncThemeFromBrowser);
+  }
+
+  function handleThemeChange(theme) {
+    state.theme = theme;
+    applyTheme();
+    renderCharts();
+    scheduleLocalPrefsSave();
+  }
+
+  function toggleTheme() {
+    var next = state.theme === 'system' ? 'light' : state.theme === 'light' ? 'dark' : 'system';
+    handleThemeChange(next);
+  }
+
+  function shouldEnhanceSelect(select) {
+    if (!select || select.tagName !== 'SELECT') return false;
+    if (select.id === 'timeline-select') return false;
+    if (select.classList.contains('hidden')) return false;
+    if (select.multiple) return false;
+    const size = Number(select.getAttribute('size'));
+    if (Number.isFinite(size) && size > 1) return false;
+    return true;
+  }
+
+  function closeCustomSelectMenus(exceptShell = null) {
+    document.querySelectorAll('.custom-select.open').forEach((shell) => {
+      if (exceptShell && shell === exceptShell) return;
+      shell.classList.remove('open');
+      const trigger = shell.querySelector('.custom-select-trigger');
+      const menu = shell._customSelectMenu || shell.querySelector('.custom-select-menu');
+      if (trigger) trigger.setAttribute('aria-expanded', 'false');
+      if (menu) menu.classList.remove('open');
+    });
+  }
+
+  function disposeCustomSelects(root = document) {
+    root.querySelectorAll?.('.custom-select').forEach((shell) => {
+      const menu = shell._customSelectMenu || shell.querySelector('.custom-select-menu');
+      if (menu && menu.parentElement === document.body) {
+        menu.remove();
+      }
+      shell._customSelectMenu = null;
+    });
+  }
+
+  function getCustomSelectMenu(shell) {
+    return shell?._customSelectMenu || shell?.querySelector('.custom-select-menu') || null;
+  }
+
+  function positionCustomSelectMenu(shell) {
+    const trigger = shell?.querySelector('.custom-select-trigger');
+    const menu = getCustomSelectMenu(shell);
+    if (!trigger || !menu) return;
+    const rect = trigger.getBoundingClientRect();
+    const viewportGap = 12;
+    const offset = 8;
+    const belowSpace = window.innerHeight - rect.bottom - viewportGap;
+    const aboveSpace = rect.top - viewportGap;
+    const preferTop = belowSpace < 180 && aboveSpace > belowSpace;
+    const maxHeight = Math.max(120, Math.min(240, preferTop ? aboveSpace - offset : belowSpace - offset));
+    const naturalHeight = menu.scrollHeight || 0;
+    const menuHeight = Math.min(naturalHeight || maxHeight, maxHeight);
+    const top = preferTop
+      ? Math.max(viewportGap, rect.top - offset - menuHeight)
+      : Math.min(window.innerHeight - viewportGap - menuHeight, rect.bottom + offset);
+    menu.style.top = `${Math.round(top)}px`;
+    // Fit the menu to the widest option so names never wrap. Layout-based
+    // measurement (scrollWidth) is unreliable here because options use
+    // width:100%, so measure text widths via canvas instead.
+    const naturalWidth = measureCustomSelectMenuWidth(menu);
+    const widthCap = Math.min(400, window.innerWidth - 24);
+    const menuWidth = Math.min(Math.max(Math.ceil(rect.width), naturalWidth), widthCap);
+    menu.style.width = `${menuWidth}px`;
+    // Keep the menu fully inside the viewport horizontally.
+    const left = Math.max(8, Math.min(Math.round(rect.left), window.innerWidth - 8 - menuWidth));
+    menu.style.left = `${left}px`;
+    menu.style.maxHeight = `${Math.round(maxHeight)}px`;
+    menu.dataset.placement = preferTop ? 'top' : 'bottom';
+  }
+
+  // Measure the pixel width of the widest option label (canvas text metrics).
+  // Returns a value that already includes option padding (2x10), menu padding
+  // (2x8), borders and a small buffer.
+  function measureCustomSelectMenuWidth(menu) {
+    const canvas = measureCustomSelectMenuWidth._canvas
+      || (measureCustomSelectMenuWidth._canvas = document.createElement('canvas'));
+    const context = canvas.getContext('2d');
+    let widest = 0;
+    menu.querySelectorAll('.custom-select-option').forEach((option) => {
+      const style = getComputedStyle(option);
+      context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      widest = Math.max(widest, context.measureText(option.textContent.trim()).width);
+    });
+    return widest > 0 ? Math.ceil(widest) + 42 : 0;
+  }
+
+  function syncOpenCustomSelectMenus() {
+    document.querySelectorAll('.custom-select.open').forEach((shell) => {
+      positionCustomSelectMenu(shell);
+    });
+  }
+
+  function syncCustomSelectShell(shell, select) {
+    if (!shell || !select) return;
+    const trigger = shell.querySelector('.custom-select-trigger');
+    const label = shell.querySelector('.custom-select-label');
+    const menu = getCustomSelectMenu(shell);
+    const selectedOption = select.options[select.selectedIndex] || select.options[0] || null;
+    const labelText = selectedOption ? selectedOption.textContent.trim() : '';
+    shell.classList.toggle('compact', select.classList.contains('compact-select'));
+    shell.classList.toggle('is-disabled', !!select.disabled);
+    trigger.disabled = !!select.disabled;
+    label.textContent = labelText;
+    trigger.title = labelText;
+    menu.innerHTML = '';
+    Array.from(select.options).forEach((option, index) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'custom-select-option';
+      if (option.selected) item.classList.add('active');
+      item.disabled = !!option.disabled;
+      item.dataset.selectIndex = String(index);
+      item.textContent = option.textContent;
+      menu.appendChild(item);
+    });
+  }
+
+  function toggleCustomSelect(shell) {
+    const willOpen = !shell.classList.contains('open');
+    closeBaudRateMenu();
+    closeTimelinePicker();
+    document.querySelectorAll('.floating-menu.open').forEach((menu) => menu.classList.remove('open'));
+    closeCustomSelectMenus(willOpen ? shell : null);
+    shell.classList.toggle('open', willOpen);
+    const trigger = shell.querySelector('.custom-select-trigger');
+    const menu = getCustomSelectMenu(shell);
+    if (trigger) trigger.setAttribute('aria-expanded', String(willOpen));
+    if (menu) {
+      menu.classList.toggle('open', willOpen);
+      if (willOpen) {
+        positionCustomSelectMenu(shell);
+      }
+    }
+  }
+
+  function ensureCustomSelect(select) {
+    if (!shouldEnhanceSelect(select)) return;
+    let shell = select.parentElement && select.parentElement.classList.contains('custom-select')
+      ? select.parentElement
+      : null;
+
+    if (!shell) {
+      shell = document.createElement('div');
+      shell.className = 'custom-select';
+      if (select.id) shell.classList.add(`select-${select.id}`);
+      select.parentNode.insertBefore(shell, select);
+      shell.appendChild(select);
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'custom-select-trigger';
+      trigger.setAttribute('aria-haspopup', 'listbox');
+      trigger.setAttribute('aria-expanded', 'false');
+
+      const label = document.createElement('span');
+      label.className = 'custom-select-label';
+
+      const caret = document.createElement('span');
+      caret.className = 'custom-select-caret';
+      caret.setAttribute('aria-hidden', 'true');
+      caret.textContent = '▾';
+
+      const menu = document.createElement('div');
+      menu.className = 'floating-menu custom-select-menu';
+      document.body.appendChild(menu);
+      shell._customSelectMenu = menu;
+
+      trigger.append(label, caret);
+      shell.append(trigger);
+
+      select.classList.add('custom-select-native');
+      select.tabIndex = -1;
+
+      trigger.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (select.disabled) return;
+        toggleCustomSelect(shell);
+      });
+
+      menu.addEventListener('click', (event) => {
+        const optionButton = event.target.closest('[data-select-index]');
+        if (!optionButton || optionButton.disabled) return;
+        event.stopPropagation();
+        const nextIndex = Number(optionButton.dataset.selectIndex);
+        if (!Number.isFinite(nextIndex)) {
+          shell.classList.remove('open');
+          return;
+        }
+        if (select.selectedIndex !== nextIndex) {
+          select.selectedIndex = nextIndex;
+          select.dispatchEvent(new Event('input', { bubbles: true }));
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        } else {
+          syncCustomSelectShell(shell, select);
+        }
+        shell.classList.remove('open');
+        menu.classList.remove('open');
+        trigger.setAttribute('aria-expanded', 'false');
+      });
+
+      select.addEventListener('change', () => {
+        syncCustomSelectShell(shell, select);
+      });
+    }
+
+    const detachedMenu = getCustomSelectMenu(shell);
+    if (detachedMenu && detachedMenu.parentElement !== document.body) {
+      document.body.appendChild(detachedMenu);
+      shell._customSelectMenu = detachedMenu;
+    }
+    syncCustomSelectShell(shell, select);
+  }
+
+  function syncCustomSelects(root = document) {
+    root.querySelectorAll('select').forEach((select) => {
+      ensureCustomSelect(select);
+    });
+    disableSpellcheck(root);
+  }
+
+  function disableSpellcheck(root = document) {
+    const apply = (element) => {
+      element.setAttribute('spellcheck', 'false');
+      element.spellcheck = false;
+    };
+    if (root instanceof Element && root.matches('input, textarea, [contenteditable]')) {
+      apply(root);
+    }
+    root.querySelectorAll?.('input, textarea, [contenteditable]').forEach(apply);
+  }
+
+  function isCompactSingleViewport() {
+    return window.innerWidth <= 720;
+  }
+
+  function closeBaudRateMenu() {
+    refs.baudRateAnchor.classList.remove('open');
+    refs.baudRatePresetMenu.classList.remove('open');
+  }
+
+  function toggleBaudRateMenu() {
+    const willOpen = !refs.baudRatePresetMenu.classList.contains('open');
+    closeTimelinePicker();
+    closeCustomSelectMenus();
+    document.querySelectorAll('.floating-menu.open').forEach((menu) => {
+      if (menu !== refs.baudRatePresetMenu) menu.classList.remove('open');
+    });
+    refs.baudRateAnchor.classList.toggle('open', willOpen);
+    refs.baudRatePresetMenu.classList.toggle('open', willOpen);
+  }
+
+  function syncCompactLayoutState() {
+    const compact = isCompactSingleViewport();
+    state.ui.compactSingle = compact;
+    if (!compact) {
+      state.ui.compactConfigOpen = false;
+    }
+
+    appEl.classList.toggle('compact-single', compact);
+    appEl.classList.toggle('sidebar-collapsed', !compact && state.ui.sidebarCollapsed);
+    appEl.classList.toggle('compact-config-open', compact && state.ui.compactConfigOpen);
+    appEl.classList.toggle('config-collapsed', false);
+
+    if (refs.topbar) {
+      const top = Math.round(refs.topbar.getBoundingClientRect().bottom + 12);
+      document.documentElement.style.setProperty('--compact-float-top', `${top}px`);
+    }
+
+    syncOverlayBackdropState();
+    refs.serialModeBtn?.classList.toggle('is-active', !state.layoutExpanded);
+    refs.parserModeBtn?.classList.toggle('is-active', state.layoutExpanded);
+    refs.logoModeSwitch?.classList.toggle('parser-active', state.layoutExpanded);
+  }
+
+  function setCompactConfigOpen(open) {
+    if (!state.ui.compactSingle) {
+      state.ui.compactConfigOpen = false;
+      syncCompactLayoutState();
+      return;
+    }
+    if (open) {
+      closeTimelinePicker();
+    }
+    state.ui.compactConfigOpen = open;
+    syncCompactLayoutState();
+    if (open && state.layoutExpanded) {
+      requestAnimationFrame(() => requestAnimationFrame(forceTerminalToLatest));
+    }
+  }
+
+  function toggleSidebarCollapse() {
+    if (state.ui.compactSingle) {
+      setCompactConfigOpen(!state.ui.compactConfigOpen);
+      return;
+    }
+    state.ui.compactConfigOpen = false;
+    state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed;
+    syncCompactLayoutState();
+    scheduleLocalPrefsSave();
+  }
+
+  function toggleLayoutMode() {
+    state.layoutExpanded = !state.layoutExpanded;
+    if (!state.ui.compactSingle) {
+      state.ui.compactConfigOpen = false;
+    }
+    applyLayout();
+    scheduleRefresh();
+    scheduleLocalPrefsSave();
+  }
+
+  function arrangeWorkspacePanels() {
+    const {
+      leftColumn,
+      rightColumn,
+      expandedLeftTop,
+      configPanel,
+      parserPanel,
+      chartsPanel,
+      monitorPanel
+    } = refs;
+    if (!leftColumn || !rightColumn || !expandedLeftTop || !configPanel || !parserPanel || !chartsPanel || !monitorPanel) {
+      return;
+    }
+
+    if (state.layoutExpanded) {
+      expandedLeftTop.appendChild(configPanel);
+      leftColumn.appendChild(expandedLeftTop);
+      rightColumn.appendChild(parserPanel);
+      rightColumn.appendChild(chartsPanel);
+    } else {
+      expandedLeftTop.appendChild(configPanel);
+      leftColumn.appendChild(expandedLeftTop);
+      rightColumn.appendChild(monitorPanel);
+      rightColumn.appendChild(chartsPanel);
+    }
+  }
+
+  function applyLayout(animate = true) {
+    arrangeWorkspacePanels();
+    appEl.classList.toggle('layout-expanded', state.layoutExpanded);
+    refs.layoutToggleLabel.textContent = '图形解析模式';
+    refs.layoutToggleBtn.title = '图形解析模式';
+    if (animate && refs.layoutToggleBtn) {
+      refs.layoutToggleBtn.animate([
+        { transform: 'scale(0.98)' },
+        { transform: 'scale(1)' }
+      ], { duration: 180, easing: 'ease-out' });
+    }
+    syncCompactLayoutState();
+    renderCharts();
+    requestAnimationFrame(refreshParserResultsExpansionAvailability);
+  }
+
+  function setAdvancedPanel() {
+    refs.advancedPanel.classList.remove('hidden');
+  }
+
+  function updateParserModeUI() {
+    refs.parserModeSwitch?.classList.toggle('parser-active', state.parserMode === 'binary');
+    document.querySelectorAll('[data-parser-mode]').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.parserMode === state.parserMode);
+    });
+    refs.textParserPane.classList.toggle('hidden', state.parserMode !== 'text');
+    refs.binaryParserPane.classList.toggle('hidden', state.parserMode !== 'binary');
+  }
+
+  function toggleMenu(menuEl) {
+    const willOpen = !menuEl.classList.contains('open');
+    closeTimelinePicker();
+    closeBaudRateMenu();
+    closeCustomSelectMenus();
+    if (!willOpen) {
+      setPendingUserConfigAction('');
+    }
+    document.querySelectorAll('.floating-menu.open').forEach((menu) => {
+      if (menu !== menuEl) menu.classList.remove('open');
+    });
+    menuEl.classList.toggle('open', willOpen);
+    syncOverlayBackdropState();
+  }
+
+  function syncOverlayBackdropState() {
+    const pickerOpen = refs.timelineRibbonShell?.classList.contains('picker-open');
+    const systemMenuOpen = refs.systemMenu?.classList.contains('open');
+    const showBackdrop = Boolean(state.ui.compactConfigOpen || pickerOpen || systemMenuOpen);
+    appEl.classList.toggle('ui-backdrop-open', showBackdrop);
+    refs.mobileConfigBackdrop.setAttribute('aria-hidden', showBackdrop ? 'false' : 'true');
+  }
+
+  function closeTimelinePicker() {
+    refs.timelineRibbonShell.classList.remove('picker-open');
+    if (state.ui.timelineExportOpenId) {
+      state.ui.timelineExportOpenId = null;
+      renderTimelineSelect();
+    }
+    syncOverlayBackdropState();
+  }
+
+  function toggleTimelinePicker() {
+    const willOpen = !refs.timelineRibbonShell.classList.contains('picker-open');
+    closeBaudRateMenu();
+    closeCustomSelectMenus();
+    document.querySelectorAll('.floating-menu.open').forEach((menu) => menu.classList.remove('open'));
+    if (!willOpen) {
+      closeTimelinePicker();
+      return;
+    }
+    if (state.ui.compactSingle && state.ui.compactConfigOpen) {
+      state.ui.compactConfigOpen = false;
+      syncCompactLayoutState();
+    }
+    renderTimelineSelect();
+    refs.timelineRibbonShell.classList.add('picker-open');
+    syncOverlayBackdropState();
+  }
+
+  function openVersionModal() {
+    refs.versionModalBackdrop?.classList.add('open');
+    refs.versionModalBackdrop?.setAttribute('aria-hidden', 'false');
+    document.querySelectorAll('.floating-menu.open').forEach((menu) => menu.classList.remove('open'));
+    syncOverlayBackdropState();
+    refs.versionModalClose?.focus();
+  }
+
+  function closeVersionModal() {
+    refs.versionModalBackdrop?.classList.remove('open');
+    refs.versionModalBackdrop?.setAttribute('aria-hidden', 'true');
+    if (state.ui.versionModalMarkOnClose) {
+      state.ui.versionModalMarkOnClose = false;
+      markVersionModalSeen();
+    }
+  }
+
+  function hasSeenVersionModal() {
+    try {
+      return localStorage.getItem(VERSION_MODAL_SEEN_KEY) === VERSION;
+    } catch (error) {
+      return true;
+    }
+  }
+
+  function markVersionModalSeen() {
+    try {
+      localStorage.setItem(VERSION_MODAL_SEEN_KEY, VERSION);
+    } catch (error) {
+      console.warn('save version modal flag failed', error);
+    }
+  }
+
+  function openInitialVersionModalIfNeeded() {
+    if (hasSeenVersionModal()) return;
+    markVersionModalSeen();
+    requestAnimationFrame(() => openVersionModal());
+  }
+
+  function openVersionModalAfterReset() {
+    state.ui.versionModalMarkOnClose = true;
+    requestAnimationFrame(() => openVersionModal());
+  }
+
+  function isLocalOfflineRuntime() {
+    const host = window.location.hostname;
+    return window.location.protocol === 'file:'
+      || host === 'localhost'
+      || host === '127.0.0.1'
+      || host === '::1'
+      || host === '[::1]';
+  }
+
+  function syncVersionDisplay() {
+    const localMode = isLocalOfflineRuntime();
+    const versionLabel = localMode ? `离线版本 v${VERSION}` : `在线版本 v${VERSION}`;
+    appEl.classList.toggle('runtime-local', localMode);
+    refs.versionInfoBtn?.classList.toggle('is-local', localMode);
+    if (refs.runtimeModeLabel) refs.runtimeModeLabel.textContent = `关于 v${VERSION}`;
+    if (refs.onlineModeChip) {
+      refs.onlineModeChip.textContent = localMode ? '访问在线模式' : '当前在线最新';
+      refs.onlineModeChip.setAttribute('aria-hidden', 'false');
+      refs.onlineModeChip.title = localMode ? '打开在线版本' : '当前已是在线版本';
+    }
+    if (refs.versionModalTitle) {
+      refs.versionModalTitle.textContent = `SerialWeb ${versionLabel}`;
+    }
+    if (refs.versionCurrentLabel) {
+      refs.versionCurrentLabel.textContent = versionLabel;
+    }
+    refs.versionOnlineBox?.classList.toggle('visible', isLocalOfflineRuntime());
+    refs.versionOnlineBox?.querySelector('a')?.setAttribute('href', ONLINE_VERSION_URL);
+  }
+
+  function closeMenus(event) {
+    const target = event?.target instanceof Element ? event.target : null;
+    if (!target || (!target.closest('.chart-config') && !target.closest('.chart-axis-binding-picker') && !target.closest('.chart-toolbar') && !target.closest('.chart-order-tools') && !target.closest('[data-chart-view-chip]'))) {
+      let closedChartConfig = false;
+      state.charts.forEach((chart) => {
+        if (!chart.open) return;
+        chart.open = false;
+        closedChartConfig = true;
+        const panel = refs.chartList?.querySelector(`[data-chart-id="${chart.id}"]`);
+        if (panel) {
+          panel.classList.remove('is-open');
+          const config = panel.querySelector('.chart-config');
+          if (config) config.classList.remove('open');
+        }
+      });
+      if (closedChartConfig) scheduleChartPaint();
+    }
+    if (!target || (!target.closest('.chart-axis-binding-picker') && !target.closest('[data-chart-view-chip]'))) {
+      state.ui.chartPickerOpenId = '';
+      state.charts.forEach((chart) => syncChartViewUi(chart));
+    }
+    if (target?.closest('.menu-anchor')) return;
+    if (target?.closest('#timeline-ribbon-shell')) return;
+    if (target?.closest('#baud-rate-anchor')) return;
+    if (target?.closest('.custom-select')) return;
+    if (!target.closest('.menu-anchor')) {
+      setPendingUserConfigAction('');
+    }
+    document.querySelectorAll('.floating-menu.open').forEach((menu) => menu.classList.remove('open'));
+    refs.baudRateAnchor?.classList.remove('open');
+    closeCustomSelectMenus();
+    closeTimelinePicker();
+  }
+
+  function addSystemLog(message, level = 'sys') {
+    console.info(`[${level}] ${message}`);
+    const text = String(message || '');
+    const timestamp = nowPreciseMs();
+    const event = buildEvent(level, [], text, {
+      timestamp,
+      metadata: { level }
+    });
+    state.session.liveEvents.push(event);
+    trimLiveEvents();
+    if (state.activeTimelineId === 'realtime') {
+      scheduleRefresh({
+        stats: false,
+        timelineBar: false,
+        derived: false,
+        monitor: true,
+        charts: false,
+        extensionButtons: false,
+        extensionPanel: false
+      });
+    }
+  }
+
+  function addInitialWebSerialStatusLog() {
+    state.serial.supported = isWebSerialApiAvailable();
+    if (state.serial.supported) {
+      addSystemLog('Web Serial API 已就绪，等待连接。', 'meta');
+    } else {
+      addSystemLog(`不支持 Web Serial API。推荐使用 Chrome 或 Edge，并访问在线最新版本：${ONLINE_VERSION_URL}`, 'error');
+    }
+    updateSerialStatus();
+  }
+
+  let serialWebViewTracked = false;
+
+  // View-count tracking only, backed by the KV store.
+  function trackSerialWebView() {
+    if (serialWebViewTracked) return;
+    if (window.location.protocol === 'file:' || typeof fetch !== 'function') return;
+    serialWebViewTracked = true;
+    fetch('/api/serialweb_page-view', {
+      method: 'POST',
+      cache: 'no-store',
+      keepalive: true,
+    }).catch(() => {});
+  }
+
+  function resetRxSegmentationState() {
+    state.serial.rxActiveEvent = null;
+    state.serial.pendingCR = false;
+  }
+
+  function resetSerialSendQueue() {
+    state.serial.sendBusy = false;
+    state.serial.sendInFlight = Promise.resolve();
+  }
+
+  async function performSerialWrite(bytes) {
+    if (!state.serial.connected || !state.serial.writer || state.serial.disconnecting) {
+      return false;
+    }
+    state.serial.sendBusy = true;
+    try {
+      await state.serial.writer.ready;
+      if (!state.serial.connected || !state.serial.writer || state.serial.disconnecting) {
+        return false;
+      }
+      await state.serial.writer.write(bytes);
+      return true;
+    } finally {
+      state.serial.sendBusy = false;
+    }
+  }
+
+  function normalizeRxSegmentText(text) {
+    return String(text ?? '').replace(/\r\n|\r|\n$/, '');
+  }
