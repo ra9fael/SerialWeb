@@ -1,0 +1,178 @@
+# Development
+
+## Repository layout
+
+```
+index.html              Document shell: every panel, control and dialog. No inline app logic.
+bootstrap.js            Runs before first paint: theme, body classes, favicon. Only pre-read script.
+app.loader.js           Dev-mode chunk loader (fetch + concat + eval as one script).
+app.core.js             (~2100 lines) Constants, `state`, `refs`, formatting, encoding, hex,
+                        theme, layout, toasts, buffers, version/offline detection, analytics.
+app.terminal.js         (~300 lines) xterm.js lifecycle, skins, echo/history, view switching.
+app.main.js             (~8000 lines) Serial lifecycle, RX pipeline, monitor rendering, send
+                        modules, timeline, parser, charts, persistence, wiring.
+style.css               All styling, light/dark themes, compact layout.
+vendor/xterm/           Vendored xterm.js + fit addon + css (no CDN, so offline works).
+build-release.py        Produces dist/SerialWeb.html.
+docs/                   This documentation set (English at the root, zh-CN mirror).
+```
+
+There is no bundler, no framework, no build step for development — the sources are the
+delivered files. `node_modules/`, `dist/` and `.venv/` are git-ignored; `dist/` is always
+reproducible from `build-release.py`.
+
+## The shared-closure constraint
+
+`app.core.js` **opens** an IIFE on line 1 (`(() => {`), `app.main.js` **closes** it
+(`})();`), and `app.terminal.js` is a fragment in between. Concatenated, they are one
+function body with one lexical scope.
+
+This has consequences the moment you touch the sources:
+
+- The three files **cannot be loaded separately** — a `<script>` tag per file fails, because
+  a closure cannot span tags. That is why `app.loader.js` exists and why the build inlines a
+  single concatenation.
+- A top-level `const`/`let`/`function` name must be unique across all three files; redeclaring
+  one is a `SyntaxError` in the concatenated result and the app silently never boots.
+- Order matters for temporal-dead-zone reasons: `app.main.js` may reference a `const` from
+  `app.core.js` inside a function (fine at call time), but not at top level in the other
+  direction. Keep new top-level constants in `app.core.js`.
+- Never introduce `import`/`export` or a second `(function(){` wrapper — it breaks the
+  concatenation contract and the build.
+
+### Why source mode needs HTTP
+
+Browsers treat each `<script src>` as an independent program, so `app.loader.js` fetches the
+three chunks, joins them with `\n`, and injects the result as one inline `<script>`. `fetch()`
+does not work from `file://`, so opening `index.html` by double-clicking shows an overlay
+pointing at `dist/SerialWeb.html`. Web Serial additionally requires a secure context, so
+`file://` could not connect a port anyway. For development, serve the root:
+
+```sh
+python -m http.server 8000     # http://localhost:8000/
+```
+
+## Globals and wiring
+
+`bootstrap.js` defines the only intentional `window.*` surface:
+`__serialWebInitialPrefs`, `__serialWebInitialTheme`,
+`__applySerialWebInitialBodyClasses()` (called by the inline script at the top of `<body>`, so
+the first painted frame already has the right theme/panel classes and does not flash) and
+`__setSerialWebFavicon()`. The app bundle exports nothing — there is no console API, and
+nothing is reachable from a DevTools snippet. When adding a startup-time concern, extend
+`bootstrap.js` rather than attaching to `window` from the app.
+
+DOM access is centralised in the `refs` map (`app.core.js`, roughly lines 58–205): one entry
+per element id, resolved once at startup. **Adding an element to `index.html` requires adding
+the matching `refs` entry** — the app does not query the DOM elsewhere for panel elements. A
+few `refs.*` names are read with optional chaining but have no entry and no element (e.g.
+`refs.statUptime`, `refs.extensionPanel`); they are inert leftovers, safe to remove.
+
+Boot order at the end of the IIFE: `initializeDefaults()` → `attachEventListeners()` →
+`trackSerialWebView()` → `tryInitialSerialConnectPrompt()`.
+
+## Extension points
+
+Two functions are the seams of the whole application:
+
+| Direction | Entry point | Guarantees |
+| --- | --- | --- |
+| TX | `sendPayload(payload, source, options, meta)` | Byte counting, log event, tag metadata, `sendBusy` serialisation, and raw-chunk recording. Any new sender must go through it. |
+| RX | `queueRxBytes(bytes, timestamp, meta)` | Line splitting, live-event trimming, recording, dirty flags for parser/chart refresh. |
+
+The actual `writer.write()` lives in `performSerialWrite()`; `buildPayloadFrame()` is the one
+place that turns box text + hex mode + newline option into bytes. `scheduleRefresh()`
+coalesces all rendering into a single `requestAnimationFrame`.
+
+Note that the terminal view deliberately bypasses `queueRxBytes` and `sendPayload` (it writes
+through `sendTerminalBytes`) and therefore opts out of parsing, plotting and recording. If you
+want a new feature to see terminal traffic, you have to add it to that second path.
+
+Timers you should know before reasoning about performance or races:
+
+| Interval | Purpose |
+| --- | --- |
+| 250 ms | Status/counter clock. |
+| 800 ms | `getSignals()` input polling. |
+| 420 ms | Baud-field debounce before a port re-open. |
+| 500 ms | `localStorage` write debounce. |
+| 80 ms | Binary schema re-parse debounce. |
+| 1800 ms | Preset expected-reply timeout. |
+| 500 ms | Send-mode tile pulse. |
+| ≥ 100 ms | Auto-send period. |
+| rAF | Derived data, monitor and chart painting. |
+
+## Building the release artifact
+
+Prerequisites: Python 3, plus
+
+| Tool | Needed for | Without it |
+| --- | --- | --- |
+| `esbuild` (`npm install`) | Minifying the concatenated JS | JS inlined verbatim, `WARN: esbuild not found`; the file still works. |
+| `minify_html` (`pip install minify-html`) | Minifying HTML and CSS | Unminified output with a warning. |
+| `node` | Validating minified inline scripts | Validation skipped (with a warning). |
+
+```sh
+npm install                                   # provides node_modules/.bin/esbuild
+pip install minify-html                       # optional, further compression
+python build-release.py                       # -> dist/SerialWeb.html
+python build-release.py --no-minify           # readable output, fastest
+```
+
+What the script does:
+
+1. Reads `index.html` and replaces each known asset tag in `INLINE_ASSETS` with an inline
+   `<style>`/`<script>` block. The three app chunks are concatenated **before** minification so
+   esbuild parses them as one closure.
+2. Escapes `</script` inside JS to `<\/script` so inline string literals cannot terminate the
+   block.
+3. Asserts that no local `src=`/`href=` reference survives outside inlined blocks — a new
+   stylesheet or script must be added to `INLINE_ASSETS`, or the build fails loudly.
+4. Minifies HTML/CSS with `minify_html`, deliberately with `minify_js=False`: minify-html's own
+   JS minifier broke scoped `const`/`let` ("Cannot access before initialization"). JS minification
+   belongs to esbuild, which runs earlier, on the concatenated source.
+5. Runs `node --check` over every inline script in the minified document; **any failure falls
+   back to the unminified document** rather than shipping something broken.
+
+The result is one self-contained file that runs from `file://` (interface only — see
+[why](#why-source-mode-needs-http)).
+
+## Verifying a change
+
+The app has no automated tests. The practical pass is:
+
+1. Rebuild, then serve the root and load both `index.html` (source mode) and
+   `dist/SerialWeb.html` (release mode) — a minification-only bug shows up in the second only.
+2. Check the console first: a broken closure surfaces as one `SyntaxError` and an empty page;
+   `app.loader.js` sets `document.documentElement.dataset.appLoadError` when a chunk fails.
+3. Exercise the loop with a device, or with the browser's virtual serial port / a loop-backed
+   COM pair: connect, framing change while connected, DTR/RTS, hex send round-trip, both
+   monitor tabs.
+4. Parser: apply a rule, confirm cards and charts, then 自动识别 on live data.
+5. Timeline: REC → stop → select → scrub → export BIN/TXT/CSV → re-import → export analysis
+   CSV.
+6. Persistence: reload the page and confirm layout/theme/queues/charts restore; then 复制配置 →
+   reload → 粘贴导入.
+7. Layout: drag the window under 720 px, and check both layouts plus the send-panel resize
+   handle.
+
+## Release checklist
+
+1. Bump `VERSION` in `app.core.js` and the copy in the version dialog markup in `index.html`
+   (title, `在线版本` label, and a new 更新日志 block — these are separate strings, all of them
+   need editing).
+2. Add the matching entry to [CHANGELOG.md](CHANGELOG.md) (English) and
+   [zh-CN/CHANGELOG.md](zh-CN/CHANGELOG.md).
+3. `python build-release.py` and smoke-test `dist/SerialWeb.html`.
+4. Publish to the two hosting endpoints (`conductance-lab.xyz/SerialWeb/` and the GitHub Pages
+   project). The offline **下载离线版到本地** link and `ONLINE_VERSION_URL` are static — no
+   update feed exists, so a version check happens only when the page is loaded.
+5. Tag the release; the single-file artifact is convenient to attach to the tag.
+
+## Documentation
+
+Docs live in `docs/`, English at the root and mirrored under `docs/zh-CN/` with identical file
+names. Keep the two trees in lockstep: a new section should appear in both, and the anchors
+above are linked from other files, so renaming a heading means updating the links that point at
+it. The interface itself is Chinese-only today; English docs therefore quote each label as
+`English (中文)`, which is also the string table a future i18n pass would start from.
