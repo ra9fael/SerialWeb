@@ -8,6 +8,7 @@ supplies the interface strings, and the two must have the same number of bullets
 per section. Everything else is derived from them here:
 
   app.core.js            const VERSION
+  package.json, package-lock.json        the npm version field
   index.html             the About dialog's release block (newest --keep shown)
   app.lang.js            English for that block's header and bullets
   docs/CHANGELOG.md      Unreleased -> v<version>
@@ -126,6 +127,22 @@ def set_core_version(version, dry_run):
     write(path, pattern.sub(r'\g<1>%s\g<2>' % version, text, count=1), dry_run)
 
 
+def set_npm_version(version, dry_run):
+    """Keep the npm manifest and lock in step, so `npm ci` accepts them as a pair."""
+    pattern = re.compile(r'("version": ")[0-9][0-9.]*(")')
+    for path in ('package.json', 'package-lock.json'):
+        text = read(path)
+        # In the lock only the root entries carry our version; dependency
+        # entries below the first "node_modules/" key must stay untouched.
+        cut = text.find('"node_modules/')
+        head = text if cut == -1 else text[:cut]
+        if not pattern.search(head):
+            print('  skipped %s (no version field)' % path)
+            continue
+        tail = text[cut:] if cut != -1 else ''
+        write(path, pattern.sub(r'\g<1>%s\g<2>' % version, head) + tail, dry_run)
+
+
 def set_dialog_block(version, date, zh_lines, en_lines, keep, dry_run):
     path = 'index.html'
     text = read(path)
@@ -223,6 +240,7 @@ def main():
     promote_unreleased(CHANGELOG_EN, args.version, date, args.dry_run)
     promote_unreleased(CHANGELOG_ZH, args.version, date, args.dry_run)
     set_core_version(args.version, args.dry_run)
+    set_npm_version(args.version, args.dry_run)
     header, en_header = set_dialog_block(args.version, date, zh_lines, en_lines, args.keep, args.dry_run)
     set_dictionary(header, en_header, zh_lines, en_lines, args.dry_run)
     set_readme_version(args.version, args.dry_run)

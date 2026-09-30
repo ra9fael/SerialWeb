@@ -4955,7 +4955,8 @@ body.theme-dark .version-modal-close:focus-visible .version-modal-close-ring {
 }
 
 body.theme-dark .version-info-grid a,
-body.theme-dark .version-online-box a {
+body.theme-dark .version-online-box a,
+body.theme-dark .version-upstream-box a {
   color: var(--accent-strong);
 }
 
@@ -5019,6 +5020,50 @@ body.theme-dark .version-online-box a {
 }
 
 .version-online-box a:hover {
+  text-decoration: underline;
+}
+
+.version-upstream-box {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(86, 114, 205, 0.18);
+  background: rgba(86, 114, 205, 0.05);
+  font-size: 13px;
+}
+
+.version-upstream-box strong,
+.version-upstream-box p {
+  grid-column: 1 / -1;
+}
+
+.version-upstream-box strong {
+  font-weight: 850;
+  color: var(--text);
+}
+
+.version-upstream-box p {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.version-upstream-box span {
+  color: var(--text-soft);
+  font-weight: 750;
+}
+
+.version-upstream-box a {
+  color: var(--signal);
+  font-weight: 750;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.version-upstream-box a:hover {
   text-decoration: underline;
 }
 

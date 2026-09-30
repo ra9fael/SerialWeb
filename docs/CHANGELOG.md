@@ -4,6 +4,22 @@ Versions match the **About** dialog inside the app. Dates are `YYYY/M/D`.
 Chinese mirror: [zh-CN/CHANGELOG.md](zh-CN/CHANGELOG.md).
 This repository is tagged from `v0.1.0`; the entries below it keep the upstream `1.x` numbers
 they shipped with. `tools/set-version.py` writes every section but those.
+Everything numbered `1.x` is an upstream release by the original author,
+[Conductance-lab](https://conductance-lab.xyz) — see [fork provenance](fork.md).
+
+## v0.3.0 — 2026/10/1
+
+- The interface now states that this is a **fork**: the About dialog names the upstream project,
+  the divergence commit (`e3f9200814`, upstream v1.6, 2026/9/6) and where each build lives, and the
+  ☰ menu and dialog links point at this repository instead of the original author's host.
+- Added a **License** row to the About dialog plus a `LICENSE` file: SerialWeb is AGPL-3.0, the
+  license the upstream project declares.
+- The hosted build no longer sends the upstream page-view request — it fires only on the original
+  author's host, so a GitHub Pages or localhost deployment makes no analytics call.
+- Added a GitHub Actions workflow that builds `dist/SerialWeb.html` and publishes it to GitHub
+  Pages as `index.html`.
+- Documentation: new [fork provenance](fork.md) page in both languages, and
+  `tools/docs-check.py` verifies doc links, heading anchors and the English/Chinese mirror.
 
 ## v0.2.0 — 2026/10/1
 
@@ -19,6 +35,11 @@ they shipped with. `tools/set-version.py` writes every section but those.
 - **Clear config** now also resets the language and the terminal font/size, and re-applies them live.
 
 ## v0.1.0 — 2026/9/30（原 v1.6）
+
+Upstream `1.6` (`e3f9200814`, 2026/9/6) taken into this fork, with the single `index.html` split
+into the source files this repository uses today. Its own additions — notably the xterm terminal
+view, which upstream `1.6` does not have — are described in
+[fork provenance](fork.md#what-this-fork-adds).
 
 - Fixed the monitor occasionally inserting blank lines for certain receive patterns.
 - Refined the display of components in device connection management.

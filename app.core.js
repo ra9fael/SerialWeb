@@ -7,8 +7,8 @@
  *   bootstrap.js -> vendor/xterm/* -> app.core.js -> app.terminal.js -> app.main.js
  * ==========================================================================*/
 (() => {
-  const VERSION = '0.2.0';
-  const ONLINE_VERSION_URL = 'https://conductance-lab.xyz/SerialWeb/';
+  const VERSION = '0.3.0';
+  const ONLINE_VERSION_URL = 'https://ra9fael.github.io/SerialWeb/';
   const VERSION_MODAL_SEEN_KEY = 'serialweb:version-modal-seen';
   const MAX_DERIVED_LOG_LINES = 320;
   const SERIAL_BUFFER_SIZE = 65536;
@@ -2274,10 +2274,12 @@
 
   let serialWebViewTracked = false;
 
-  // View-count tracking only, backed by the KV store.
+  // Upstream's own page counter: its KV endpoint only exists on the author's host.
   function trackSerialWebView() {
     if (serialWebViewTracked) return;
-    if (window.location.protocol === 'file:' || typeof fetch !== 'function') return;
+    const host = window.location.hostname;
+    if (host !== 'conductance-lab.xyz' && host !== 'www.conductance-lab.xyz') return;
+    if (typeof fetch !== 'function') return;
     serialWebViewTracked = true;
     fetch('/api/serialweb_page-view', {
       method: 'POST',

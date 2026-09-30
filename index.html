@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SerialWeb | Conductance-lab</title>
+  <title>SerialWeb</title>
 <script src="bootstrap.js"></script>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="vendor/xterm/xterm.css">
@@ -119,11 +119,10 @@
                 <button id="cancel-user-config-btn" type="button">取消</button>
               </div>
               <div class="menu-link-row">
-                <a href="https://docs.qq.com/form/page/DU1B2RWVyZnJERHdq" target="_blank" rel="noreferrer">问题反馈</a>
-                <a href="https://docs.conductance-lab.xyz/工具手册/SerialWeb工具手册" target="_blank" rel="noreferrer">工具手册</a>
+                <a href="https://github.com/ra9fael/SerialWeb/issues" target="_blank" rel="noreferrer">问题反馈</a>
+                <a href="https://github.com/ra9fael/SerialWeb/blob/main/docs/README.md" target="_blank" rel="noreferrer">工具手册</a>
               </div>
               <a id="download-local-link" href="index.html" download="SerialWeb串口调试.html">下载离线版到本地</a>
-              <a href="https://conductance-lab.xyz" target="_blank" rel="noreferrer">电导实验室主页</a>
             </div>
           </div>
         </div>
@@ -575,7 +574,7 @@
       <div class="version-modal-head">
         <div>
           <div id="version-modal-title" class="version-modal-title">SerialWeb</div>
-          <div class="version-modal-subtitle">电导实验室串口监视与图形解析工具</div>
+          <div class="version-modal-subtitle">串口监视与图形解析工具</div>
         </div>
         <button id="version-modal-close" class="version-modal-close" type="button" aria-label="关闭版本信息">
           <svg class="version-modal-close-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
@@ -589,21 +588,46 @@
           <strong>当前版本</strong>
           <span id="version-current-label">—</span>
           <strong>工具手册</strong>
-          <span><a href="https://docs.conductance-lab.xyz/%E5%B7%A5%E5%85%B7%E6%89%8B%E5%86%8C/SerialWeb%E5%B7%A5%E5%85%B7%E6%89%8B%E5%86%8C" target="_blank" rel="noreferrer">查看工具手册</a></span>
+          <span><a href="https://github.com/ra9fael/SerialWeb/blob/main/docs/README.md" target="_blank" rel="noreferrer">查看工具手册</a></span>
           <strong>问题反馈</strong>
-          <span><a href="https://docs.qq.com/form/page/DU1B2RWVyZnJERHdq" target="_blank" rel="noreferrer">提交问题反馈</a></span>
-          <strong>GitHub</strong>
+          <span><a href="https://github.com/ra9fael/SerialWeb/issues" target="_blank" rel="noreferrer">提交问题反馈</a></span>
+          <strong>源码仓库</strong>
           <span><a href="https://github.com/ra9fael/SerialWeb" target="_blank" rel="noreferrer">查看 github 项目</a></span>
+          <strong>许可证</strong>
+          <span><a href="https://github.com/ra9fael/SerialWeb/blob/main/LICENSE" target="_blank" rel="noreferrer">查看 AGPL-3.0 许可证</a></span>
         </div>
         <div id="version-online-box" class="version-online-box">
           <strong>最新在线版本</strong>
-          <span>国内访问</span>
+          <span>GitHub Pages</span>
+          <a href="https://ra9fael.github.io/SerialWeb/" target="_blank" rel="noreferrer">https://ra9fael.github.io/SerialWeb/</a>
+        </div>
+        <div class="version-upstream-box">
+          <strong>分叉来源</strong>
+          <p>SerialWeb 由电导实验室（Conductance-lab）创作，本仓库是它的独立分叉；分叉点之前的代码归原作者，两者一律按 AGPL-3.0 授权。</p>
+          <p>分叉自上游 v1.6（提交 e3f9200814，2026/9/6），即本仓库的 v0.1.0。</p>
+          <span>原作者主页</span>
+          <a href="https://conductance-lab.xyz" target="_blank" rel="noreferrer">https://conductance-lab.xyz</a>
+          <span>上游仓库</span>
+          <a href="https://github.com/Conductance-lab/SerialWeb" target="_blank" rel="noreferrer">github.com/Conductance-lab/SerialWeb</a>
+          <span>上游在线版本</span>
           <a href="https://conductance-lab.xyz/SerialWeb/" target="_blank" rel="noreferrer">https://conductance-lab.xyz/SerialWeb/</a>
-          <span>GitHub Page</span>
-          <a href="https://conductance-lab.github.io/SerialWeb/" target="_blank" rel="noreferrer">https://conductance-lab.github.io/SerialWeb/</a>
+          <span>上游工具手册</span>
+          <a href="https://docs.conductance-lab.xyz/%E5%B7%A5%E5%85%B7%E6%89%8B%E5%86%8C/SerialWeb%E5%B7%A5%E5%85%B7%E6%89%8B%E5%86%8C" target="_blank" rel="noreferrer">docs.conductance-lab.xyz</a>
+          <span>原始反馈表单</span>
+          <a href="https://docs.qq.com/form/page/DU1B2RWVyZnJERHdq" target="_blank" rel="noreferrer">docs.qq.com</a>
         </div>
         <div class="version-changelog">
           <div class="version-changelog-title">更新日志</div>
+          <div class="version-release">
+            <strong>v0.3.0 版本 · 26/10/1</strong>
+            <ul>
+              <li>界面现在明确标注分叉身份：关于弹窗写清上游项目、分叉提交（e3f9200814，上游 v1.6，2026/9/6）以及各处构建的托管位置；☰ 菜单与弹窗里的链接改为指向本仓库，不再指向原作者的主机。</li>
+              <li>关于弹窗新增许可证一行，仓库补上 LICENSE：SerialWeb 采用上游声明的 AGPL-3.0 许可证。</li>
+              <li>线上构建不再发送上游的页面访问统计——该请求只在原作者的主机上发出，因此 GitHub Pages 或 localhost 部署不会产生统计请求。</li>
+              <li>新增 GitHub Actions 工作流：构建 dist/SerialWeb.html 并作为 index.html 发布到 GitHub Pages。</li>
+              <li>文档：新增中英双语的分叉来源，并用 tools/docs-check.py 校验文档链接、标题锚点与中英镜像。</li>
+            </ul>
+          </div>
           <div class="version-release">
             <strong>v0.2.0 版本 · 26/10/1</strong>
             <ul>
@@ -617,6 +641,7 @@
           <div class="version-release">
             <strong>v0.1.0 版本 · 26/9/30</strong>
             <ul>
+              <li>分叉基线：上游 v1.6（提交 e3f9200814）；本仓库把单文件拆成源码分片，并新增了上游没有的 xterm 终端视图。</li>
               <li>修复串口接收数据特殊情况下监视器多出空行的问题。</li>
               <li>优化设备连接管理中组件的显示效果。</li>
               <li>优化图框的部分显示效果和操作逻辑。</li>
@@ -635,19 +660,6 @@
               <li>优化页面配色与扁平化设计，浅色/深色模式分离。</li>
               <li>优化预设发送交互逻辑，通过开关控制全局快捷键的预设发送。</li>
               <li>新增解析配置帮助提示，支持悬浮查看规则说明。</li>
-            </ul>
-          </div>
-          <div class="version-release">
-            <strong>v1.3 版本 · 26/6/30</strong>
-            <ul>
-              <li>新增柱状图，支持通道选择、纵轴缩放与自动量程。</li>
-              <li>name 标签匹配逻辑改为后缀数字匹配（name0↔int0），规则格式更灵活。</li>
-              <li>预设发送支持单字符快捷键，按下即发；自动全选，替换即生效。</li>
-              <li>修复 GitHub 历史版本仓库，优化离线版本使用体验。</li>
-              <li>优化紧凑显示模式、布局间距与各面板一致性。</li>
-              <li>优化通道交互、图框渲染、频域图通道筛选与 name 动态字段跟踪。</li>
-              <li>优化时间线回放、配置导入导出的图框状态同步与持久化。</li>
-              <li>优化模板解析、发送数据过滤与复选框样式统一。</li>
             </ul>
           </div>
         </div>

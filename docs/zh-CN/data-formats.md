@@ -27,7 +27,7 @@ SerialWeb 写出或持久化的一切格式，便于其他工具读取抓取数�
 
 ```jsonc
 {
-  "appVersion": "0.2.0",
+  "appVersion": "0.3.0",
   "receiveContentSchemaVersion": 1,
   "savedAt": 1767100000000,          // Date.now()，仅供参考
   "theme": "system",                 // "system" | "light" | "dark"
