@@ -17,9 +17,10 @@ app.main.js             (~8000 lines) Serial lifecycle, RX pipeline, monitor ren
                         modules, timeline, parser, charts, persistence, wiring.
 style.css               All styling, light/dark themes, compact layout.
 vendor/xterm/           Vendored xterm.js + fit addon + css (no CDN, so offline works).
-build-release.py        Produces dist/SerialWeb.html.
-tools/                  Optional development helpers: cdp-check.mjs (headless-browser audit
-                        driver), extract-i18n-keys.py (dictionary key lister). Not shipped.
+build-release.py        Verifies the version, then produces dist/SerialWeb.html.
+tools/                  Optional development helpers: set-version.py (cut a release),
+                        cdp-check.mjs (headless-browser audit driver),
+                        extract-i18n-keys.py (dictionary key lister). Not shipped.
 docs/                   This documentation set (English at the root, zh-CN mirror).
 ```
 
@@ -98,11 +99,12 @@ python build-release.py --no-minify           # readable output, fastest
 
 这个脚本做的事：
 
-1. 读取 `index.html`，把 `INLINE_ASSETS` 里每个已知资源标签替换为内联的 `<style>`/`<script>` 块。三个应用分片在压缩**之前**拼接，这样 esbuild 会把它们当作一个闭包来解析。
-2. 把 JS 内部的 `</script` 转义成 `<\/script`，使内联字符串字面量无法终止该块。
-3. 断言内联块之外不再残留任何本地 `src=`/`href=` 引用——新增样式表或脚本必须加入 `INLINE_ASSETS`，否则构建会明确失败。
-4. 用 `minify_html` 压缩 HTML/CSS，并刻意设置 `minify_js=False`：minify-html 自带的 JS 压缩器会破坏块级作用域的 `const`/`let`（"Cannot access before initialization"）。JS 压缩属于 esbuild，它在更早的拼接源码阶段执行。
-5. 对压缩文档中的每个内联脚本执行 `node --check`；**任何失败都会回退到未压缩的文档**，而不是交付一个坏掉的产物。
+1. 校验版本号：`app.core.js` 里的 `const VERSION`、[CHANGELOG.md](../CHANGELOG.md) 中最新的 `## v<版本>` 小节，以及 `index.html` 里最新的 更新日志 块必须指向同一个版本，否则脚本在写出任何内容之前就会停止。见[版本号](#版本号)。
+2. 读取 `index.html`，把 `INLINE_ASSETS` 里每个已知资源标签替换为内联的 `<style>`/`<script>` 块。三个应用分片在压缩**之前**拼接，这样 esbuild 会把它们当作一个闭包来解析。
+3. 把 JS 内部的 `</script` 转义成 `<\/script`，使内联字符串字面量无法终止该块。
+4. 断言内联块之外不再残留任何本地 `src=`/`href=` 引用——新增样式表或脚本必须加入 `INLINE_ASSETS`，否则构建会明确失败。
+5. 用 `minify_html` 压缩 HTML/CSS，并刻意设置 `minify_js=False`：minify-html 自带的 JS 压缩器会破坏块级作用域的 `const`/`let`（"Cannot access before initialization"）。JS 压缩属于 esbuild，它在更早的拼接源码阶段执行。
+6. 对压缩文档中的每个内联脚本执行 `node --check`；**任何失败都会回退到未压缩的文档**，而不是交付一个坏掉的产物。
 
 结果是一个自包含文件，可以从 `file://` 运行（仅界面——见[原因](#为什么源码模式需要-http)）。
 
@@ -124,13 +126,31 @@ python build-release.py --no-minify           # readable output, fastest
 输出一份 JSON 轨迹加一张截图，并报告控制台错误。场景有 `i18n`（语言往返与残留审计）、`term`（字体可用性、字号、Ctrl+滚轮、隐藏时生效）、`roundtrip` 和 `reset`。
 `tools/extract-i18n-keys.py` 会从 `index.html` 与各分片重新生成 `app.lang.js` 的候选键表。
 
+## 版本号
+
+`app.core.js` 里的 `const VERSION` 是应用唯一会读取的版本号：它决定 ☰ **关于** 的标签、弹窗标题与当前版本一行、`serialweb:version-modal-seen` 记录，以及写入 prefs 的 `appVersion` 字段。由于 `syncVersionDisplay()` 在启动时就会覆盖这些文案，它们在标记里被刻意留成中性的（`关于`、`SerialWeb`、`—`）——不要把数字填回去。仍有两处带着字面版本，因为它们必须在任何脚本运行之前就正确：`index.html` 里的 更新日志 块，以及文档。
+
+本仓库从 `v0.1.0` 开始打标签，其下的条目保留它们发布时沿用的上游 `1.x` 编号——所以更新日志读起来是 `0.2.0, 0.1.0, 1.5, 1.4, …`。此后一律使用 `vMAJOR.MINOR.PATCH`，标签就是 `VERSION` 加一个 `v` 前缀。
+
+## 发布新版本
+
+先把更新内容写进 [CHANGELOG.md](../CHANGELOG.md) 的 `## Unreleased` 与 [CHANGELOG.md](CHANGELOG.md) 的 `## 未发布`——两份逐条对应、条目数相同——然后：
+
+```sh
+python tools/set-version.py 0.2.0 --date 2026/10/1 --dry-run
+python tools/set-version.py 0.2.0 --date 2026/10/1
+python build-release.py
+git commit -a -m "chore(release): v0.2.0" && git tag v0.2.0
+```
+
+`set-version.py` 会同时提升两处更新日志小标题，重写 `const VERSION`，插入新的弹窗 更新日志 块（只保留最新的 `--keep 5` 段），依据英文更新日志把新块的标题与每一条英文译文写进 `app.lang.js`，并更新 [README.md](README.md) 的当前版本一行与 [data-formats.md](data-formats.md) 的 `appVersion` 示例。它不提交任何东西，请审阅 diff。弹窗里的每一行本身就是字典的键，手改 `index.html` 会让英文界面显示中文——这个脚本正是让英文更新日志与弹窗保持同步的手段。之后 `build-release.py` 在三处版本不一致时拒绝构建，于是漏掉一步表现为构建失败，而不是交付一个版本号过期的弹窗。
+
 ## 发布检查清单
 
-1. 更新 `app.core.js` 里的 `VERSION`，以及 `index.html` 中版本弹窗文案里的那一份（标题、`在线版本` 标签，并新增一段 更新日志 —— 它们彼此是独立的字符串，每一个都要改）。版本相关的字符串本身都走带 `{{version}}` 占位符的 `t()`，因此不需要新增词条；但每一条 更新日志 文本本身就是一个键：要在 `app.lang.js` 里给它配上英文，否则英文界面会显示中文行。
-2. 在 [CHANGELOG.md](../CHANGELOG.md)（英文）和 [CHANGELOG.md](CHANGELOG.md) 中补上对应条目。
-3. 执行 `python build-release.py`，并对 `dist/SerialWeb.html` 做冒烟测试。
-4. 发布到两个托管端点（`conductance-lab.xyz/SerialWeb/` 和 GitHub Pages 项目）。离线的 **下载离线版到本地** 链接和 `ONLINE_VERSION_URL` 是静态的——不存在更新源，因此只在页面加载时才做版本检查。
-5. 给发布打标签；单文件产物很适合附在标签上。
+1. 把更新内容写进两份更新日志的 `Unreleased` / `未发布`，再按[发布新版本](#发布新版本)切出版本号。不要手工修改 `VERSION` 或弹窗文案。
+2. 对 `dist/SerialWeb.html` 做冒烟测试：控制台干净、两种语言都正常，☰ **关于** 弹窗显示新的版本号。
+3. 发布到两个托管端点（`conductance-lab.xyz/SerialWeb/` 和 GitHub Pages 项目）。离线的 **下载离线版到本地** 链接和 `ONLINE_VERSION_URL` 是静态的——不存在更新源，因此只在页面加载时才做版本检查。
+4. 给发布打标签；单文件产物很适合附在标签上。
 
 ## 文档
 

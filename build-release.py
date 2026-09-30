@@ -11,6 +11,11 @@ HTML/CSS are minified with minify_html when importable. Minified inline
 scripts are validated with `node --check` before being written; on any
 validation failure the build falls back to the unminified document.
 
+Before anything is inlined the version is checked for consistency: app.core.js
+`const VERSION` must equal the newest `## v<semver>` heading in
+docs/CHANGELOG.md and must head the newest About-dialog release block. Use
+tools/set-version.py to cut a release, which writes all three at once.
+
 Usage:  python build-release.py            (full minification when tools are available)
         python build-release.py --no-minify
 """
@@ -86,7 +91,39 @@ def minify_js_with_esbuild(source):
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+def check_version_consistency():
+    """VERSION, the changelog and the About dialog must name the same release."""
+    core = read(os.path.join(ROOT, 'app.core.js'))
+    match = re.search(r"const VERSION = '([^']*)'", core)
+    if not match:
+        raise SystemExit('ERROR: no `const VERSION` in app.core.js')
+    version = match.group(1)
+    problems = []
+    if not re.match(r'^\d+\.\d+\.\d+$', version):
+        problems.append('app.core.js VERSION is %s, expected bare semver such as 0.2.0'
+                        % ascii(version))
+    headings = re.findall(r'^## v(\d+\.\d+\.\d+)',
+                          read(os.path.join(ROOT, 'docs', 'CHANGELOG.md')), re.M)
+    if not headings:
+        problems.append('docs/CHANGELOG.md has no versioned section, only Unreleased')
+    elif headings[0] != version:
+        problems.append('docs/CHANGELOG.md newest section is %s but VERSION is %s'
+                        % (ascii(headings[0]), ascii(version)))
+    dialog = re.search(r'<div class="version-release">\s*<strong>([^<]*)</strong>',
+                       read(os.path.join(ROOT, 'index.html')))
+    header = u'v%s 版本' % version
+    if dialog is None:
+        problems.append('index.html has no release block in the About dialog')
+    elif not dialog.group(1).startswith(header):
+        problems.append('the dialog newest release block is %s, expected it to start with %s'
+                        % (ascii(dialog.group(1)), ascii(header)))
+    if problems:
+        raise SystemExit('ERROR: version drift, cut the release with tools/set-version.py:\n  - %s'
+                         % '\n  - '.join(problems))
+
+
 def main():
+    check_version_consistency()
     html = read(os.path.join(ROOT, 'index.html'))
 
     for tag, filename, kind in INLINE_ASSETS:

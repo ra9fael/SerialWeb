@@ -15,9 +15,10 @@ app.main.js             (~8000 lines) Serial lifecycle, RX pipeline, monitor ren
                         modules, timeline, parser, charts, persistence, wiring.
 style.css               All styling, light/dark themes, compact layout.
 vendor/xterm/           Vendored xterm.js + fit addon + css (no CDN, so offline works).
-build-release.py        Produces dist/SerialWeb.html.
-tools/                  Optional development helpers: cdp-check.mjs (headless-browser audit
-                        driver), extract-i18n-keys.py (dictionary key lister). Not shipped.
+build-release.py        Verifies the version, then produces dist/SerialWeb.html.
+tools/                  Optional development helpers: set-version.py (cut a release),
+                        cdp-check.mjs (headless-browser audit driver),
+                        extract-i18n-keys.py (dictionary key lister). Not shipped.
 docs/                   This documentation set (English at the root, zh-CN mirror).
 ```
 
@@ -125,17 +126,21 @@ python build-release.py --no-minify           # readable output, fastest
 
 What the script does:
 
-1. Reads `index.html` and replaces each known asset tag in `INLINE_ASSETS` with an inline
+1. Checks the version: `const VERSION` in `app.core.js`, the newest `## v<version>` heading in
+   [CHANGELOG.md](CHANGELOG.md) and the newest 更新日志 block in `index.html` must name the same
+   release, or the build stops before writing anything. See
+   [version numbering](#version-numbering).
+2. Reads `index.html` and replaces each known asset tag in `INLINE_ASSETS` with an inline
    `<style>`/`<script>` block. The three app chunks are concatenated **before** minification so
    esbuild parses them as one closure.
-2. Escapes `</script` inside JS to `<\/script` so inline string literals cannot terminate the
+3. Escapes `</script` inside JS to `<\/script` so inline string literals cannot terminate the
    block.
-3. Asserts that no local `src=`/`href=` reference survives outside inlined blocks — a new
+4. Asserts that no local `src=`/`href=` reference survives outside inlined blocks — a new
    stylesheet or script must be added to `INLINE_ASSETS`, or the build fails loudly.
-4. Minifies HTML/CSS with `minify_html`, deliberately with `minify_js=False`: minify-html's own
+5. Minifies HTML/CSS with `minify_html`, deliberately with `minify_js=False`: minify-html's own
    JS minifier broke scoped `const`/`let` ("Cannot access before initialization"). JS minification
    belongs to esbuild, which runs earlier, on the concatenated source.
-5. Runs `node --check` over every inline script in the minified document; **any failure falls
+6. Runs `node --check` over every inline script in the minified document; **any failure falls
    back to the unminified document** rather than shipping something broken.
 
 The result is one self-contained file that runs from `file://` (interface only — see
@@ -172,21 +177,50 @@ size, ctrl+wheel, applying while hidden), `roundtrip` and `reset`.
 `tools/extract-i18n-keys.py` regenerates the candidate key list for
 `app.lang.js` from `index.html` and the chunks.
 
+## Version numbering
+
+`const VERSION` in `app.core.js` is the only version the app reads: it drives the ☰ **关于** label,
+the dialog title and current-version line, the `serialweb:version-modal-seen` flag, and the
+`appVersion` field written into prefs. Because `syncVersionDisplay()` overwrites those strings at
+boot, their markup copies are deliberately neutral (`关于`, `SerialWeb`, `—`) — do not put a number
+back into them. Two places still carry a literal version, because they have to be right before any
+script runs: the 更新日志 blocks in `index.html` and the docs.
+
+This repository tags from `v0.1.0`, and the entries below it keep the upstream `1.x` numbers they
+shipped with — which is why the changelog reads `0.2.0, 0.1.0, 1.5, 1.4, …`. From here on the
+format is `vMAJOR.MINOR.PATCH` and the tag equals `VERSION` with a `v` prefix.
+
+## Cutting a release
+
+Write the notes first, under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md) and `## 未发布` in
+[zh-CN/CHANGELOG.md](zh-CN/CHANGELOG.md) — mirrored, same number of bullets — then:
+
+```sh
+python tools/set-version.py 0.2.0 --date 2026/10/1 --dry-run
+python tools/set-version.py 0.2.0 --date 2026/10/1
+python build-release.py
+git commit -a -m "chore(release): v0.2.0" && git tag v0.2.0
+```
+
+`set-version.py` promotes both changelog headings, rewrites `const VERSION`, inserts the new dialog
+block (keeping the newest `--keep 5`), derives its English header and bullet translations into
+`app.lang.js` from the English changelog, and updates the current-version mention in
+[README.md](README.md) plus the `appVersion` example in [data-formats.md](data-formats.md). It
+commits nothing; review the diff. Since the dialog lines are dictionary keys, hand-writing them
+into `index.html` instead would show Chinese in the English UI — the script is what keeps the
+English changelog and the dialog in step. `build-release.py` then refuses to build while the three
+copies disagree, so a skipped step fails the build instead of shipping a stale dialog.
+
 ## Release checklist
 
-1. Bump `VERSION` in `app.core.js` and the copy in the version dialog markup in `index.html`
-   (title, `在线版本` label, and a new 更新日志 block — these are separate strings, all of them
-   need editing). The version strings themselves go through `t()` with a `{{version}}`
-   placeholder, so they need no new dictionary entries — but every 更新日志 line you add is
-   itself a key: give it an English counterpart in `app.lang.js` or the English UI shows the
-   Chinese line.
-2. Add the matching entry to [CHANGELOG.md](CHANGELOG.md) (English) and
-   [zh-CN/CHANGELOG.md](zh-CN/CHANGELOG.md).
-3. `python build-release.py` and smoke-test `dist/SerialWeb.html`.
-4. Publish to the two hosting endpoints (`conductance-lab.xyz/SerialWeb/` and the GitHub Pages
+1. Write the notes into both changelogs under `Unreleased` / `未发布`, then cut the version as in
+   [cutting a release](#cutting-a-release). Do not edit `VERSION` or the dialog by hand.
+2. Smoke-test `dist/SerialWeb.html`: console clean, both locales, and the ☰ **关于** dialog showing
+   the new version.
+3. Publish to the two hosting endpoints (`conductance-lab.xyz/SerialWeb/` and the GitHub Pages
    project). The offline **下载离线版到本地** link and `ONLINE_VERSION_URL` are static — no
    update feed exists, so a version check happens only when the page is loaded.
-5. Tag the release; the single-file artifact is convenient to attach to the tag.
+4. Tag the release; the single-file artifact is convenient to attach to the tag.
 
 ## Documentation
 
