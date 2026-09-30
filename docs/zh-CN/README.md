@@ -13,10 +13,13 @@ SerialWeb 是一款基于 Web Serial API 的浏览器串口调试与数据绘图
 - **时间线录制** —— 把一次会话录制为原始字节，冻结实时视图，拖动与回放已归档的抓取，
   并以 `.bin` / `.csv` / `.txt` 导出导入。
 
-当前版本：**v0.2.0**。项目主页：
-<https://conductance-lab.xyz/SerialWeb/> ·
-<https://conductance-lab.github.io/SerialWeb/> ·
+当前版本：**v0.3.0**。本分叉的主页：
+<https://ra9fael.github.io/SerialWeb/> ·
 <https://github.com/ra9fael/SerialWeb>
+
+SerialWeb 由 [电导实验室（Conductance-lab）](https://conductance-lab.xyz) 创作，本仓库是
+<https://github.com/Conductance-lab/SerialWeb> 的分叉，基线取到上游 `v1.6`；原作者自己的在线版本在
+<https://conductance-lab.xyz/SerialWeb/>。详情见[分叉来源](fork.md)。
 
 > 界面支持中英双语：在 ☰ 系统菜单里选择 **中文 / English / 跟随系统**，首次打开时跟随浏览器语言。
 > 本套中文文档里的界面控件一律按屏幕上的实际文字书写。英文文档与本套中文文档逐文件对应：[../README.md](../README.md)。
@@ -32,6 +35,7 @@ SerialWeb 是一款基于 Web Serial API 的浏览器串口调试与数据绘图
 | [数据格式](data-formats.md) | `localStorage` 键、配置快照结构、时间线 BIN/TXT/CSV 布局、解析结果导出 |
 | [开发指南](development.md) | 仓库结构、共享闭包约束、构建脚本、发布 |
 | [更新日志](CHANGELOG.md) | 各版本更新说明 |
+| [分叉来源](fork.md) | 原始项目、分叉点、本分叉新增内容、许可证 |
 
 ## 运行要求
 
@@ -51,8 +55,8 @@ Web Serial 只在**安全上下文**中可用，而且目前只有 Chromium 系�
 ## 快速开始
 
 **1 —— 使用在线版本（最省事）。** 打开
-<https://conductance-lab.xyz/SerialWeb/>（或
-[GitHub Pages 镜像](https://conductance-lab.github.io/SerialWeb/)）。
+<https://ra9fael.github.io/SerialWeb/> —— 本仓库由 GitHub Actions 发布的单文件构建。
+[上游原作者的构建](https://conductance-lab.xyz/SerialWeb/) 是另一个程序，版本号各自独立。
 
 **2 —— 或在本地运行单文件构建。**
 
@@ -103,6 +107,16 @@ python -m http.server 8000         # -> http://localhost:8000/
 
 ## 反馈
 
+- 本分叉的源码、issue 与功能需求：<https://github.com/ra9fael/SerialWeb>
+- 手册：就是本套文档 —— 应用的 ☰ 菜单与关于弹窗也链接到这里。
+
+## 上游项目
+
+本仓库是一个分叉，分叉点与许可证见[分叉来源](fork.md)。原作者自己的页面：
+
+- 仓库：<https://github.com/Conductance-lab/SerialWeb>
+- 在线版本：<https://conductance-lab.xyz/SerialWeb/> ·
+  GitHub Pages：<https://conductance-lab.github.io/SerialWeb/>
 - 手册与教程：<https://docs.conductance-lab.xyz/工具手册/SerialWeb工具手册>
 - 问题反馈：<https://docs.qq.com/form/page/DU1B2RWVyZnJERHdq>
-- 源码与 issue：<https://github.com/ra9fael/SerialWeb>
+- 作者主页：<https://conductance-lab.xyz>

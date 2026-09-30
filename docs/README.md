@@ -15,10 +15,14 @@ It combines four jobs that normally need separate tools:
 - **Timeline recorder** — record a session to raw bytes, freeze the live view, scrub and
   replay archived captures, and export/import them as `.bin` / `.csv` / `.txt`.
 
-Current version: **v0.2.0**. Project home:
-<https://conductance-lab.xyz/SerialWeb/> ·
-<https://conductance-lab.github.io/SerialWeb/> ·
+Current version: **v0.3.0**. This fork's home:
+<https://ra9fael.github.io/SerialWeb/> ·
 <https://github.com/ra9fael/SerialWeb>
+
+SerialWeb was created by [Conductance-lab](https://conductance-lab.xyz); this repository is a fork
+of <https://github.com/Conductance-lab/SerialWeb> taken from upstream `v1.6`. The original online
+version is at <https://conductance-lab.xyz/SerialWeb/>. Details:
+[Fork provenance](fork.md).
 
 > The interface is bilingual: choose **中文 / English / 跟随系统 (follow the system)** in the ☰
 > system menu; a first run follows the browser language. Every label in these English docs is
@@ -36,6 +40,7 @@ Current version: **v0.2.0**. Project home:
 | [Data formats](data-formats.md) | `localStorage` keys, config snapshot schema, timeline BIN/TXT/CSV layout, analysis export |
 | [Development](development.md) | Repository layout, the shared-closure constraint, the build script, releasing |
 | [Changelog](CHANGELOG.md) | Release notes per version |
+| [Fork provenance](fork.md) | The original project, the divergence point, what this fork adds, the license |
 
 ## Requirements
 
@@ -57,8 +62,9 @@ need to connect.
 ## Quick start
 
 **1 — Use the hosted build (easiest).** Open
-<https://conductance-lab.xyz/SerialWeb/> (or the
-[GitHub Pages mirror](https://conductance-lab.github.io/SerialWeb/)).
+<https://ra9fael.github.io/SerialWeb/> — this repository's single-file build, published by GitHub
+Actions. The [original project's build](https://conductance-lab.xyz/SerialWeb/) is a separate
+program with its own version number.
 
 **2 — Or run the single-file build locally.**
 
@@ -112,6 +118,17 @@ file, equivalent to `dist/SerialWeb.html`. This is unavailable inside a `file://
 
 ## Feedback
 
+- Source, issues and feature requests for this fork: <https://github.com/ra9fael/SerialWeb>
+- Manual: these pages — the app's ☰ menu and About dialog link here too.
+
+## Original project
+
+This repository is a fork; [fork provenance](fork.md) has the divergence point and the license.
+The upstream author's own pages:
+
+- Repository: <https://github.com/Conductance-lab/SerialWeb>
+- Online version: <https://conductance-lab.xyz/SerialWeb/> ·
+  GitHub Pages: <https://conductance-lab.github.io/SerialWeb/>
 - Manual & tutorials: <https://docs.conductance-lab.xyz/工具手册/SerialWeb工具手册>
 - Issue reports: <https://docs.qq.com/form/page/DU1B2RWVyZnJERHdq>
-- Source and issues: <https://github.com/ra9fael/SerialWeb>
+- Author home page: <https://conductance-lab.xyz>

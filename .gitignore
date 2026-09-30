@@ -11,6 +11,11 @@ dist/
 # Headless browser profile used by tools/cdp-check.mjs
 tools/.cdp-profile/
 
+# Screenshots and traces written by tools/cdp-check.mjs (--out)
+audit/
+audit.json
+audit.png
+
 # OS junk
 Thumbs.db
 Desktop.ini

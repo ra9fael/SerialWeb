@@ -28,7 +28,7 @@ layout between two arrangements:
 | --- | --- | --- |
 | Top bar, left | Status pill | Connection state (串口离线 / 串口已连接 / 不支持 Web Serial API) and the mode switch. Click, Enter or Space toggles the sidebar. |
 | Top bar, centre | Timeline ribbon | `REC` record toggle, freeze hub, scrubber, timestamp readout, capture picker (`▾`). |
-| Top bar, right | System menu `☰` | Version info, theme, config copy/paste/reset, feedback and manual links, offline download. |
+| Top bar, right | System menu `☰` | Version info, theme, language, config copy/paste/reset, feedback and manual links, offline download. |
 | Left column | Device connection management (设备连接管理) | Port, framing, signals, advanced display options. |
 | Left column | Parser protocol settings (解析协议设置) | Text/hex rules and the live results card. See [parser.md](parser.md). |
 | Left column | Add chart frame (添加图框) | Chart list. See [charts.md](charts.md). |

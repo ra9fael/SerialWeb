@@ -4,7 +4,12 @@ A browser-based serial-port debugger and live data-plotting tool built on the We
 delivered as **one self-contained HTML file** — no installer, no server, no CDN dependency.
 
 **Documentation: [docs/](docs/README.md)** · 中文文档: [docs/zh-CN/](docs/zh-CN/README.md)
-· Live app: <https://conductance-lab.xyz/SerialWeb/>
+· Live app: <https://ra9fael.github.io/SerialWeb/>
+
+SerialWeb was created by [Conductance-lab](https://conductance-lab.xyz); this repository is a
+**fork** of [`Conductance-lab/SerialWeb`](https://github.com/Conductance-lab/SerialWeb), kept up to
+date from upstream `v1.6` — [fork provenance](docs/fork.md) has the divergence point, what this
+fork adds, and the AGPL-3.0 license terms.
 
 It replaces the four tools a bench session normally needs:
 
@@ -42,7 +47,8 @@ Firefox and Safari do not implement `navigator.serial`.
 | [Charts reference](docs/charts.md) | Chart types, channel binding, zoom and scaling, FFT behaviour, retention limits |
 | [Data formats](docs/data-formats.md) | `localStorage` keys, config snapshot schema, timeline BIN/TXT/CSV layout, analysis export |
 | [Development](docs/development.md) | Repository layout, the shared-closure constraint, the build script, release checklist |
-| [Changelog](docs/CHANGELOG.md) | Release notes, v1.0 – v1.6 |
+| [Changelog](docs/CHANGELOG.md) | Release notes, upstream v1.0 – v1.6 plus this fork's v0.x series |
+| [Fork provenance](docs/fork.md) | The original project, the divergence point, what this fork adds, the license |
 
 Every page has a Chinese counterpart under [`docs/zh-CN/`](docs/zh-CN/README.md) with the same
 file names and section order; English is the source of truth.
@@ -63,7 +69,20 @@ how to extend the app safely.
 
 ## Links
 
+**This fork**
+
+- Online version: <https://ra9fael.github.io/SerialWeb/>
 - Source and issues: <https://github.com/ra9fael/SerialWeb>
+
+**Original project** — this is a fork of it, and the app's ☰ menu and About dialog link back to
+every one of these.
+
+- Source: <https://github.com/Conductance-lab/SerialWeb>
+- Online version: <https://conductance-lab.xyz/SerialWeb/> ·
+  GitHub Pages: <https://conductance-lab.github.io/SerialWeb/>
 - Manual & tutorials: <https://docs.conductance-lab.xyz/工具手册/SerialWeb工具手册>
 - Issue reports: <https://docs.qq.com/form/page/DU1B2RWVyZnJERHdq>
-- GitHub Pages mirror: <https://conductance-lab.github.io/SerialWeb/>
+- Author home page: <https://conductance-lab.xyz>
+
+Licensed under AGPL-3.0 — see [LICENSE](LICENSE) and
+[fork provenance](docs/fork.md#license).
